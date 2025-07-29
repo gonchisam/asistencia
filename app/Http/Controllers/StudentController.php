@@ -2,126 +2,99 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Estudiante; // Asegúrate de importar tu modelo Estudiante
 use Illuminate\Http\Request;
-use App\Models\Estudiante;
-use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\File; // Para generar el archivo de estudiantes para Arduino
+use Illuminate\Support\Facades\Log;
 
 class StudentController extends Controller
 {
-    /**
-     * Muestra un listado paginado de todos los estudiantes (activos e inactivos).
-     */
     public function index()
     {
-        $estudiantes = Estudiante::orderBy('nombre')->paginate(10);
+        $estudiantes = Estudiante::paginate(10); // O Estudiante::where('estado', 1)->paginate(10);
         return view('students.index', compact('estudiantes'));
     }
 
-    /**
-     * Muestra el formulario para crear un nuevo estudiante.
-     */
     public function create()
     {
         return view('students.create');
     }
 
-    /**
-     * Guarda un nuevo estudiante en la base de datos.
-     */
     public function store(Request $request)
     {
         $request->validate([
             'nombre' => 'required|string|max:255',
-            'uid' => 'required|string|unique:students,uid|max:255',
+            'uid' => 'required|string|unique:students,uid',
         ]);
 
         Estudiante::create([
             'nombre' => $request->nombre,
             'uid' => $request->uid,
-            'estado' => 1, // Activo por defecto
+            'estado' => 1, // Por defecto activo
         ]);
 
-        $this->generateStudentsListForArduino();
+        $this->generateStudentsListForArduino(); // Generar archivo actualizado
 
         return redirect()->route('students.index')->with('status', 'Estudiante registrado exitosamente!');
     }
 
-    /**
-     * Muestra el formulario de edición para un estudiante específico.
-     */
+    public function show(Estudiante $student)
+    {
+        // Si necesitas una vista para mostrar un estudiante individual
+        return view('students.show', compact('student'));
+    }
+
     public function edit(Estudiante $student)
     {
         return view('students.edit', compact('student'));
     }
 
-    /**
-     * Actualiza un estudiante en la base de datos.
-     */
     public function update(Request $request, Estudiante $student)
     {
         $request->validate([
             'nombre' => 'required|string|max:255',
-            'uid' => 'required|string|unique:students,uid,' . $student->id . '|max:255',
+            'uid' => 'required|string|unique:students,uid,' . $student->id, // Ignorar el UID actual para el propio estudiante
+            'estado' => 'required|boolean', // Si quieres permitir cambiar el estado desde el formulario de edición
         ]);
 
-        $student->update([
-            'nombre' => $request->nombre,
-            'uid' => $request->uid,
-        ]);
+        $student->update($request->all());
 
-        $this->generateStudentsListForArduino();
+        $this->generateStudentsListForArduino(); // Generar archivo actualizado
 
         return redirect()->route('students.index')->with('status', 'Estudiante actualizado exitosamente!');
     }
 
-    /**
-     * Baja lógica: desactiva a un estudiante (estado = 0).
-     */
     public function destroy(Estudiante $student)
     {
-        $student->update(['estado' => 0]);
+        $student->update(['estado' => 0]); // Cambia el estado a inactivo
 
-        $this->generateStudentsListForArduino();
+        $this->generateStudentsListForArduino(); // Generar archivo actualizado
 
         return redirect()->route('students.index')->with('status', 'Estudiante dado de baja exitosamente!');
     }
 
-    /**
-     * Reactiva a un estudiante previamente desactivado (estado = 1).
-     */
     public function restore(Estudiante $student)
     {
-        $student->update(['estado' => 1]);
+        $student->update(['estado' => 1]); // Reactiva al estudiante
 
-        $this->generateStudentsListForArduino();
+        $this->generateStudentsListForArduino(); // Generar archivo actualizado
 
         return redirect()->route('students.index')->with('status', 'Estudiante reactivado exitosamente!');
     }
 
-    /**
-     * Genera un archivo de texto con los estudiantes activos (UID y nombre) para el Arduino.
-     */
+    // Método para generar el archivo de estudiantes para Arduino
     private function generateStudentsListForArduino()
     {
-        $students = Estudiante::where('estado', 1)->get();
-        $content = "UID,NOMBRE\n";
+        $students = Estudiante::where('estado', 1)->get(); // Solo estudiantes activos
+        $content = "UID,NOMBRE\n"; // Encabezado
 
         foreach ($students as $student) {
             $content .= $student->uid . "," . $student->nombre . "\n";
         }
 
-        $filePath = public_path('lista_estudiantes.txt');
+        $filePath = public_path('lista_estudiantes.txt'); // Guarda en la carpeta public
         File::put($filePath, $content);
 
-        \Log::info('Archivo lista_estudiantes.txt generado correctamente.');
-    }
-
-    /**
-     * Endpoint API: retorna la lista de estudiantes activos en formato JSON para Arduino.
-     */
-    public function getStudentsList()
-    {
-        $students = Estudiante::where('estado', 1)->get(['uid', 'nombre']);
-        return response()->json($students);
+        Log::info('Archivo lista_estudiantes.txt generado y actualizado correctamente.');
     }
 }
