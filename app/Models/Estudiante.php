@@ -10,32 +10,38 @@ class Estudiante extends Model
 {
     use HasFactory;
 
-    protected $table = 'students';
+    protected $table = 'students'; // Asegura que apunta a la tabla correcta
 
     protected $fillable = [
-        'nombre',
         'uid',
-        'estado', // Se mantiene 'estado' aquí
-        'created_by',
-        'updated_by',
+        'nombre',
+        'primer_apellido',
+        'segundo_apellido',
+        'ci',
+        'fecha_nacimiento',
+        'carrera',
+        'año',
+        'sexo',
+        'celular',
+        'correo',
+        'estado',
+        'created_by', // Si estás usando esto
+        'updated_by', // Si estás usando esto
     ];
 
     /**
-     * Método boot() para auto-rellenar campos de auditoría al crear/actualizar.
+     * The "booted" method of the model.
+     * Sobreescribe para asignar automáticamente el usuario que crea/actualiza.
      */
-    protected static function boot()
+    protected static function booted()
     {
-        parent::boot();
-
-        // Al crear un nuevo estudiante
         static::creating(function ($estudiante) {
-            $estudiante->created_by = Auth::id() ?? 1; // Usamos 1 como ID de usuario por defecto
+            $estudiante->created_by = Auth::id() ?? 1; // Asigna el ID del usuario actual o 1 si no hay
             $estudiante->updated_by = Auth::id() ?? 1;
         });
 
-        // Al actualizar un estudiante
         static::updating(function ($estudiante) {
-            $estudiante->updated_by = Auth::id() ?? 1; // Usamos 1 como ID de usuario por defecto
+            $estudiante->updated_by = Auth::id() ?? 1;
         });
     }
 
@@ -53,5 +59,11 @@ class Estudiante extends Model
     public function updater()
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    // Si quieres obtener las asistencias de un estudiante
+    public function asistencias()
+    {
+        return $this->hasMany(Asistencia::class, 'uid', 'uid');
     }
 }

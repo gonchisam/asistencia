@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
@@ -32,9 +33,18 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            // Agregamos la regla de validación para la API Key
+            'api_key' => ['required', 'string'],
         ]);
+
+        // Verificamos si la API Key es la correcta
+        if ($request->api_key !== config('app.registration_key')) {
+            throw ValidationException::withMessages([
+                'api_key' => __('La API Key proporcionada no es válida.'),
+            ]);       
+        }
 
         $user = User::create([
             'name' => $request->name,

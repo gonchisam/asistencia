@@ -13,9 +13,18 @@ return new class extends Migration
     {
         Schema::create('students', function (Blueprint $table) {
             $table->id();
-            $table->string('nombre');
             $table->string('uid')->unique(); // RFID UID como string único
-
+            $table->string('nombre');
+            $table->string('primer_apellido');
+            $table->string('segundo_apellido')->nullable();
+            $table->string('ci')->unique();
+            $table->date('fecha_nacimiento');
+            $table->enum('carrera', ['Contabilidad', 'Secretariado', 'Mercadotecnia', 'Sistemas']);
+            $table->enum('año', ['Primer Año', 'Segundo Año', 'Tercer Año']);
+            $table->enum('sexo', ['MASCULINO', 'FEMENINO']);
+            $table->string('celular')->nullable();
+            $table->string('correo');
+            
             // Campo para el estado del estudiante (0 inactivo, 1 activo - para eliminación lógica)
             $table->boolean('estado')->default(true)->comment('Estado del registro: 0 inactivo, 1 activo (eliminación lógica)');
             // Nuevo campo para la última acción registrada (ENTRADA/SALIDA). Puede ser nulo al inicio.

@@ -12,7 +12,7 @@ class Asistencia extends Model
 
     protected $fillable = [
         'uid',
-        'nombre',
+        'nombre', // Este campo es redundante si tienes una relación directa a estudiantes, pero puede ser útil para el historial
         'accion',
         'modo',
         'fecha_hora',
@@ -21,6 +21,12 @@ class Asistencia extends Model
     protected $casts = [
         'fecha_hora' => 'datetime'
     ];
+
+    // Relación con el estudiante (asumiendo que 'uid' en asistencias se relaciona con 'uid' en students)
+    public function estudiante()
+    {
+        return $this->belongsTo(Estudiante::class, 'uid', 'uid');
+    }
 
     /**
      * Obtiene la fecha y hora formateada.
