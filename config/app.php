@@ -185,4 +185,7 @@ return [
         // 'Example' => App\Facades\Example::class,
     ])->toArray(),
 
+    // ... otros valores de configuración
+    'registration_key' => env('REGISTRATION_KEY', 'default_value'),
+
 ];

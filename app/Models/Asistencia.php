@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 class Asistencia extends Model
 {
     use HasFactory;
+    protected $table = 'asistencias';
 
     protected $fillable = [
         'uid',

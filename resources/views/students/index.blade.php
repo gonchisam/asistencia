@@ -61,18 +61,58 @@
             <table class="min-w-full bg-white border border-gray-200 rounded-lg">
                 <thead>
                     <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
-                        <th class="py-3 px-6 text-left">Nombre</th>
-                        <th class="py-3 px-6 text-left">UID RFID</th>
-                        <th class="py-3 px-6 text-left">Carrera</th>
-                        <th class="py-3 px-6 text-left">Año</th>
-                        <th class="py-3 px-6 text-left">Estado</th>
+                        <th class="py-3 px-6 text-left">
+                            <a href="{{ route('students.index', ['sort' => 'nombre', 'direction' => request('sort') == 'nombre' && request('direction') == 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'direction', 'page'])) }}"
+                               class="flex items-center space-x-1 font-semibold text-gray-700 hover:text-gray-900 transition-colors">
+                                <span>Nombre</span>
+                                @if(request('sort') == 'nombre')
+                                    <span>{{ request('direction') == 'asc' ? '↓' : '↑' }}</span>
+                                @endif
+                            </a>
+                        </th>
+                        <th class="py-3 px-6 text-left">
+                            <a href="{{ route('students.index', ['sort' => 'uid', 'direction' => request('sort') == 'uid' && request('direction') == 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'direction', 'page'])) }}"
+                               class="flex items-center space-x-1 font-semibold text-gray-700 hover:text-gray-900 transition-colors">
+                                <span>UID RFID</span>
+                                @if(request('sort') == 'uid')
+                                    <span>{{ request('direction') == 'asc' ? '↓' : '↑' }}</span>
+                                @endif
+                            </a>
+                        </th>
+                        <th class="py-3 px-6 text-left">
+                            <a href="{{ route('students.index', ['sort' => 'carrera', 'direction' => request('sort') == 'carrera' && request('direction') == 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'direction', 'page'])) }}"
+                               class="flex items-center space-x-1 font-semibold text-gray-700 hover:text-gray-900 transition-colors">
+                                <span>Carrera</span>
+                                @if(request('sort') == 'carrera')
+                                    <span>{{ request('direction') == 'asc' ? '↓' : '↑' }}</span>
+                                @endif
+                            </a>
+                        </th>
+                        <th class="py-3 px-6 text-left">
+                            <a href="{{ route('students.index', ['sort' => 'año', 'direction' => request('sort') == 'año' && request('direction') == 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'direction', 'page'])) }}"
+                               class="flex items-center space-x-1 font-semibold text-gray-700 hover:text-gray-900 transition-colors">
+                                <span>Año</span>
+                                @if(request('sort') == 'año')
+                                    <span>{{ request('direction') == 'asc' ? '↓' : '↑' }}</span>
+                                @endif
+                            </a>
+                        </th>
+                        <th class="py-3 px-6 text-left">
+                            <a href="{{ route('students.index', ['sort' => 'estado', 'direction' => request('sort') == 'estado' && request('direction') == 'asc' ? 'desc' : 'asc'] + request()->except(['sort', 'direction', 'page'])) }}"
+                               class="flex items-center space-x-1 font-semibold text-gray-700 hover:text-gray-900 transition-colors">
+                                <span>Estado</span>
+                                @if(request('sort') == 'estado')
+                                    <span>{{ request('direction') == 'asc' ? '↓' : '↑' }}</span>
+                                @endif
+                            </a>
+                        </th>
                         <th class="py-3 px-6 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="text-gray-600 text-sm font-light">
                     @forelse ($estudiantes as $student)
                         <tr class="border-b border-gray-200 hover:bg-gray-100">
-                            <td class="py-3 px-6 text-left whitespace-nowrap">{{ $student->nombre }}</td>
+                            <td class="py-3 px-6 text-left whitespace-nowrap">{{ $student->nombre }} {{ $student->primer_apellido }} {{ $student->segundo_apellido }}</td>
                             <td class="py-3 px-6 text-left">{{ $student->uid }}</td>
                             <td class="py-3 px-6 text-left">{{ $student->carrera }}</td>
                             <td class="py-3 px-6 text-left">{{ $student->año }}</td>

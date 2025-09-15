@@ -41,9 +41,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/reportes/pdf', [ReportesController::class, 'generatePdf'])->name('reportes.pdf');
     Route::get('/reportes/excel', [ReportesController::class, 'generateExcel'])->name('reportes.excel');
 
-    // En routes/web.php
-
-    // Dentro del grupo Route::middleware('auth')->group(...)
-
+    // Verifica si un UID ya existe (esta ruta sí necesita autenticación)
     Route::post('/students/check-uid', [StudentController::class, 'checkUid'])->name('students.check_uid');
-}); 
+});
+
+// NUEVAS RUTAS PÚBLICAS PARA COMUNICACIÓN CON EL DISPOSITIVO ARDUINO
+// Estas rutas no requieren autenticación
+Route::post('/api/rfid-scan', [StudentController::class, 'receiveUid']);
+Route::get('/api/get-uid', [StudentController::class, 'getTempUid']);

@@ -13,16 +13,18 @@ return new class extends Migration
     {
         Schema::create('asistencias', function (Blueprint $table) {
             $table->id();
-            $table->string('uid'); // UID del estudiante
-            $table->string('nombre'); // Nombre del estudiante (para historial/reportes directos)
-            $table->string('accion'); // ENTRADA o SALIDA
-            $table->string('modo');   // WIFI o SD
+            $table->string('uid');
+            $table->string('nombre')->nullable();
+            $table->string('accion')->comment('ENTRADA o SALIDA');
+            $table->string('modo')->comment('Manual, QR o RFID');
             $table->timestamp('fecha_hora');
+            $table->timestamps();
 
-            $table->timestamps(); // created_at y updated_at
-
-            // Relación a estudiantes (por UID)
-            $table->foreign('uid')->references('uid')->on('students')->onDelete('cascade');
+            $table->foreign('uid')
+                  ->references('uid')
+                  ->on('students')
+                  ->onDelete('cascade')
+                  ->onUpdate('cascade'); // <-- ¡Esta es la línea clave!
         });
     }
 

@@ -10,7 +10,8 @@ class Estudiante extends Model
 {
     use HasFactory;
 
-    protected $table = 'students'; // Asegura que apunta a la tabla correcta
+    // Asegura que el modelo apunte a la tabla correcta 'students'.
+    protected $table = 'students'; 
 
     protected $fillable = [
         'uid',
@@ -24,9 +25,10 @@ class Estudiante extends Model
         'sexo',
         'celular',
         'correo',
+        'last_action', // Me faltó este campo en la respuesta anterior, lo he añadido.
         'estado',
-        'created_by', // Si estás usando esto
-        'updated_by', // Si estás usando esto
+        'created_by',
+        'updated_by',
     ];
 
     /**
@@ -36,7 +38,7 @@ class Estudiante extends Model
     protected static function booted()
     {
         static::creating(function ($estudiante) {
-            $estudiante->created_by = Auth::id() ?? 1; // Asigna el ID del usuario actual o 1 si no hay
+            $estudiante->created_by = Auth::id() ?? 1;
             $estudiante->updated_by = Auth::id() ?? 1;
         });
 
@@ -61,9 +63,11 @@ class Estudiante extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    // Si quieres obtener las asistencias de un estudiante
+    // Relación para obtener las asistencias de un estudiante
     public function asistencias()
     {
+        // Esta relación es crucial para que DB::table('asistencias') funcione
+        // correctamente y sepa a qué UID pertenece cada estudiante.
         return $this->hasMany(Asistencia::class, 'uid', 'uid');
     }
 }
