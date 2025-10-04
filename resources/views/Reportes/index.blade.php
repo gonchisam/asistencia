@@ -6,7 +6,7 @@
 
         <p class="text-gray-700 mb-6">Utiliza los filtros a continuación para generar reportes de asistencia en formato PDF o Excel.</p>
 
-        <form action="{{ route('reportes.pdf') }}" method="GET" class="mb-8">
+        <form action="{{ route('reportes.index') }}" method="GET" class="mb-8">
             <h3 class="text-xl font-semibold text-gray-700 mb-4">Filtros de Reporte</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 <div>
@@ -29,6 +29,33 @@
                     </select>
                 </div>
                 <div>
+                    <label for="carrera" class="block text-sm font-medium text-gray-700">Carrera:</label>
+                    <select name="carrera" id="carrera" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                        <option value="">Todas las carreras</option>
+                        @php
+                            $carreras = ['Contabilidad', 'Secretariado', 'Sistemas', 'Mercadotecnia'];
+                        @endphp
+                        @foreach ($carreras as $carrera)
+                            <option value="{{ $carrera }}" {{ request('carrera') === $carrera ? 'selected' : '' }}>
+                                {{ $carrera }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label for="anio_estudio" class="block text-sm font-medium text-gray-700">Año de Estudio:</label>
+                    <select name="anio_estudio" id="anio_estudio" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                        <option value="">Todos los años</option>
+                        <option value="Primer Año" {{ request('anio_estudio') === 'Primer Año' ? 'selected' : '' }}>Primer Año</option>
+                        <option value="Segundo Año" {{ request('anio_estudio') === 'Segundo Año' ? 'selected' : '' }}>Segundo Año</option>
+                        <option value="Tercer Año" {{ request('anio_estudio') === 'Tercer Año' ? 'selected' : '' }}>Tercer Año</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="ci" class="block text-sm font-medium text-gray-700">CI:</label>
+                    <input type="text" name="ci" id="ci" value="{{ request('ci') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                </div>
+                <div>
                     <label for="accion" class="block text-sm font-medium text-gray-700">Acción:</label>
                     <select name="accion" id="accion" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
                         <option value="">Todas</option>
@@ -40,47 +67,90 @@
                     <label for="modo" class="block text-sm font-medium text-gray-700">Modo:</label>
                     <select name="modo" id="modo" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
                         <option value="">Todos</option>
-                        <option value="WIFI" {{ request('modo') === 'WIFI' ? 'selected' : '' }}>WIFI</option>
-                        <option value="SD" {{ request('modo') === 'SD' ? 'selected' : '' }}>SD</option>
+                        <option value="ONLINE" {{ request('modo') === 'ONLINE' ? 'selected' : '' }}>ONLINE</option>
+                        <option value="OFFLINE_SYNC" {{ request('modo') === 'OFFLINE_SYNC' ? 'selected' : '' }}>OFFLINE</option>
                     </select>
                 </div>
             </div>
 
             <div class="flex space-x-4">
-                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition duration-150 flex items-center">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-150 flex items-center">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
-                    Generar PDF
+                    Aplicar Filtros
                 </button>
-                <button type="submit" form="excel-form" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 flex items-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
-                    Generar Excel
-                </button>
+                <a href="{{ route('reportes.index') }}" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition duration-150 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m15.356-2A8.001 8.001 0 0115.418 15m0 0v5h.582"></path></svg>
+                    Refrescar Filtros
+                </a>
             </div>
         </form>
 
-        {{-- Formulario oculto para el Excel que usa la misma lógica de filtros --}}
-        <form id="excel-form" action="{{ route('reportes.excel') }}" method="GET" style="display: none;">
-            <input type="hidden" name="fecha_inicio" id="excel_fecha_inicio">
-            <input type="hidden" name="fecha_fin" id="excel_fecha_fin">
-            <input type="hidden" name="estudiante_id" id="excel_estudiante_id">
-            <input type="hidden" name="accion" id="excel_accion">
-            <input type="hidden" name="modo" id="excel_modo">
-        </form>
+        <hr class="my-8">
 
-        {{-- Script para sincronizar los valores del formulario al enviar para Excel --}}
-        @push('scripts')
-        <script>
-            document.querySelector('form').addEventListener('submit', function(event) {
-                // Si el botón presionado es el de PDF, no necesitamos sincronizar nada para Excel
-                if (event.submitter && event.submitter.form === document.getElementById('excel-form')) {
-                    document.getElementById('excel_fecha_inicio').value = document.getElementById('fecha_inicio').value;
-                    document.getElementById('excel_fecha_fin').value = document.getElementById('fecha_fin').value;
-                    document.getElementById('excel_estudiante_id').value = document.getElementById('estudiante_id').value;
-                    document.getElementById('excel_accion').value = document.getElementById('accion').value;
-                    document.getElementById('excel_modo').value = document.getElementById('modo').value;
-                }
-            });
-        </script>
-        @endpush
+        <h3 class="text-xl font-semibold text-gray-700 mb-4">Vista Previa del Reporte</h3>
+
+        @if($asistencias->isEmpty())
+            <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative" role="alert">
+                <span class="block sm:inline">No se encontraron asistencias con los filtros seleccionados.</span>
+            </div>
+        @else
+            <div class="overflow-x-auto bg-white rounded-lg shadow-lg mb-6">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estudiante</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">UID</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CI</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carrera</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Año</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acción</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modo</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @foreach($asistencias as $asistencia)
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $asistencia->estudiante->nombre }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $asistencia->estudiante->uid }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $asistencia->estudiante->ci }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $asistencia->estudiante->carrera }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $asistencia->estudiante->año }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $asistencia->created_at->format('d/m/Y H:i:s') }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm {{ $asistencia->accion === 'ENTRADA' ? 'text-green-600' : 'text-red-600' }} font-bold">{{ $asistencia->accion }}</td>
+                            
+                            {{-- CORRECCIÓN: Mapear el valor de 'modo' para una visualización amigable --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $asistencia->modo }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex space-x-4">
+                <form action="{{ route('reportes.pdf') }}" method="GET" class="inline-block" target="_blank">
+                    @foreach(request()->all() as $key => $value)
+                        @if(!is_null($value))
+                            <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                        @endif
+                    @endforeach
+                    <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition duration-150 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                        Generar PDF
+                    </button>
+                </form>
+                <form action="{{ route('reportes.excel') }}" method="GET" class="inline-block">
+                    @foreach(request()->all() as $key => $value)
+                        @if(!is_null($value))
+                            <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                        @endif
+                    @endforeach
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                        Generar Excel
+                    </button>
+                </form>
+            </div>
+        @endif
     </div>
 @endsection

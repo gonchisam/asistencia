@@ -2,7 +2,14 @@
 
 @section('content')
     <div class="bg-white rounded-lg shadow-lg p-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Gestión de Estudiantes</h2>
+        <div class="flex items-center gap-3 mb-6 border-b pb-3">
+            <h2 class="text-2xl font-bold text-gray-800">Gestión de Estudiantes</h2>
+            <a href="{{ route('students.create') }}" class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full transition duration-150 flex items-center justify-center" title="Registrar Nuevo Estudiante">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+            </a>
+        </div>
 
         @if (session('status'))
             <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
@@ -11,50 +18,55 @@
             </div>
         @endif
 
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <a href="{{ route('students.create') }}" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-150">
+        <!-- Botón de registro alineado a la izquierda -->
+        <div class="mb-6">
+            <a href="{{ route('students.create') }}" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-150 inline-block">
                 Registrar Nuevo Estudiante
             </a>
+        </div>
 
-            <div class="w-full md:w-auto">
-                <form action="{{ route('students.index') }}" method="GET" class="flex flex-col md:flex-row gap-3">
-                    <div>
-                        <select name="carrera" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Todas las carreras</option>
-                            <option value="Contabilidad" {{ request('carrera') == 'Contabilidad' ? 'selected' : '' }}>Contabilidad</option>
-                            <option value="Secretariado" {{ request('carrera') == 'Secretariado' ? 'selected' : '' }}>Secretariado</option>
-                            <option value="Mercadotecnia" {{ request('carrera') == 'Mercadotecnia' ? 'selected' : '' }}>Mercadotecnia</option>
-                            <option value="Sistemas" {{ request('carrera') == 'Sistemas' ? 'selected' : '' }}>Sistemas</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <select name="año" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Todos los años</option>
-                            <option value="Primer Año" {{ request('año') == 'Primer Año' ? 'selected' : '' }}>Primer Año</option>
-                            <option value="Segundo Año" {{ request('año') == 'Segundo Año' ? 'selected' : '' }}>Segundo Año</option>
-                            <option value="Tercer Año" {{ request('año') == 'Tercer Año' ? 'selected' : '' }}>Tercer Año</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <select name="estado" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Todos los estados</option>
-                            <option value="1" {{ request('estado') == '1' ? 'selected' : '' }}>Activos</option>
-                            <option value="0" {{ request('estado') == '0' ? 'selected' : '' }}>Inactivos</option>
-                        </select>
-                    </div>
+        <!-- Filtros mejorados con ancho fijo y alineación a la izquierda -->
+        <div class="w-full mb-6">
+            <form action="{{ route('students.index') }}" method="GET" class="flex flex-wrap items-end gap-3">
+                <div class="flex flex-col">
+                    <label for="carrera" class="text-sm font-medium text-gray-700 mb-1">Carrera</label>
+                    <select name="carrera" id="carrera" class="w-48 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
+                        <option value="">Todas las carreras</option>
+                        <option value="Contabilidad" {{ request('carrera') == 'Contabilidad' ? 'selected' : '' }}>Contabilidad</option>
+                        <option value="Secretariado" {{ request('carrera') == 'Secretariado' ? 'selected' : '' }}>Secretariado</option>
+                        <option value="Mercadotecnia" {{ request('carrera') == 'Mercadotecnia' ? 'selected' : '' }}>Mercadotecnia</option>
+                        <option value="Sistemas" {{ request('carrera') == 'Sistemas' ? 'selected' : '' }}>Sistemas</option>
+                    </select>
+                </div>
+                
+                <div class="flex flex-col">
+                    <label for="año" class="text-sm font-medium text-gray-700 mb-1">Año</label>
+                    <select name="año" id="año" class="w-36 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
+                        <option value="">Todos los años</option>
+                        <option value="Primer Año" {{ request('año') == 'Primer Año' ? 'selected' : '' }}>Primer Año</option>
+                        <option value="Segundo Año" {{ request('año') == 'Segundo Año' ? 'selected' : '' }}>Segundo Año</option>
+                        <option value="Tercer Año" {{ request('año') == 'Tercer Año' ? 'selected' : '' }}>Tercer Año</option>
+                    </select>
+                </div>
+                
+                <div class="flex flex-col">
+                    <label for="estado" class="text-sm font-medium text-gray-700 mb-1">Estado</label>
+                    <select name="estado" id="estado" class="w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
+                        <option value="">Todos</option>
+                        <option value="1" {{ request('estado') == '1' ? 'selected' : '' }}>Activos</option>
+                        <option value="0" {{ request('estado') == '0' ? 'selected' : '' }}>Inactivos</option>
+                    </select>
+                </div>
 
-                    <div class="flex gap-2">
-                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
-                            Filtrar
-                        </button>
-                        <a href="{{ route('students.index') }}" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">
-                            Limpiar
-                        </a>
-                    </div>
-                </form>
-            </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded text-sm transition duration-150">
+                        Filtrar
+                    </button>
+                    <a href="{{ route('students.index') }}" class="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded text-sm transition duration-150">
+                        Limpiar
+                    </a>
+                </div>
+            </form>
         </div>
 
         <div class="overflow-x-auto">

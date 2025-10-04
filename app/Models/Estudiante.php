@@ -5,13 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str; // Importa la clase Str para generar el UUID
 
 class Estudiante extends Model
 {
     use HasFactory;
 
-    // Asegura que el modelo apunte a la tabla correcta 'students'.
-    protected $table = 'students'; 
+    // La tabla es 'students'
+    protected $table = 'students';
 
     protected $fillable = [
         'uid',
@@ -25,24 +26,36 @@ class Estudiante extends Model
         'sexo',
         'celular',
         'correo',
-        'last_action', // Me faltó este campo en la respuesta anterior, lo he añadido.
+        'last_action',
         'estado',
         'created_by',
         'updated_by',
     ];
 
+    protected $casts = [
+        'estado' => 'boolean',
+        'fecha_nacimiento' => 'date',
+    ];
+
     /**
-     * The "booted" method of the model.
-     * Sobreescribe para asignar automáticamente el usuario que crea/actualiza.
+     * El método "booted" del modelo.
+     * Sobreescribe para asignar automáticamente el usuario que crea/actualiza
+     * y para generar un UUID para el campo 'uid' antes de crear el registro.
      */
     protected static function booted()
     {
         static::creating(function ($estudiante) {
+            // Se ha comentado esta línea para que se use el UID del formulario
+            // en lugar de generar uno nuevo.
+            // $estudiante->uid = (string) Str::uuid();
+            
+            // Asigna el usuario creador y actualizador
             $estudiante->created_by = Auth::id() ?? 1;
             $estudiante->updated_by = Auth::id() ?? 1;
         });
 
         static::updating(function ($estudiante) {
+            // Asigna el usuario que actualiza el registro
             $estudiante->updated_by = Auth::id() ?? 1;
         });
     }
@@ -63,11 +76,28 @@ class Estudiante extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    // Relación para obtener las asistencias de un estudiante
+    /**
+     * Relación para obtener las asistencias de un estudiante.
+     * Conecta el campo 'uid' de ambas tablas.
+     */
     public function asistencias()
     {
-        // Esta relación es crucial para que DB::table('asistencias') funcione
-        // correctamente y sepa a qué UID pertenece cada estudiante.
         return $this->hasMany(Asistencia::class, 'uid', 'uid');
+    }
+
+    /**
+     * Scope para obtener solo estudiantes activos.
+     */
+    public function scopeActivos($query)
+    {
+        return $query->where('estado', true);
+    }
+
+    /**
+     * Accessor para obtener el nombre completo.
+     */
+    public function getNombreCompletoAttribute()
+    {
+        return trim($this->nombre . ' ' . $this->primer_apellido . ' ' . $this->segundo_apellido);
     }
 }

@@ -72,6 +72,7 @@ class StudentController extends Controller
      */
     public function store(Request $request)
     {
+        \Log::info('Intento de guardar estudiante. Datos recibidos: ' . json_encode($request->all()));
         $request->validate([
             'uid' => 'required|string|unique:students,uid|max:255',
             'nombre' => 'required|string|max:255',
@@ -85,6 +86,8 @@ class StudentController extends Controller
             'celular' => 'nullable|string|max:20|regex:/^[\d\s\+\(\)\-]*$/',
             'correo' => 'required|email|max:255|unique:students,correo',
         ]);
+
+        \Log::info('Validación del estudiante exitosa.');
 
         Estudiante::create([
             'nombre' => strtoupper($request->nombre),
@@ -119,7 +122,6 @@ class StudentController extends Controller
      */
     public function update(Request $request, Estudiante $student)
     {
-        // 1. Validar los datos del formulario, incluyendo el nuevo UID.
         $validatedData = $request->validate([
             'uid' => [
                 'required',
@@ -149,13 +151,13 @@ class StudentController extends Controller
                 Rule::unique('students', 'correo')->ignore($student->id),
             ],
             'last_action' => 'nullable|string|max:255',
-            'estado' => 'required|boolean',
+            'estado' => 'nullable',
         ]);
 
-        // 2. Guardar el estado actual del UID antes de la actualización.
         $oldUid = $student->uid;
         
-        // 3. Actualizar el modelo de estudiante en la tabla 'students'.
+        $estado = $request->has('estado') && $request->estado == '1' ? 1 : 0;
+        
         $student->update([
             'nombre' => strtoupper($validatedData['nombre']),
             'primer_apellido' => strtoupper($validatedData['primer_apellido']),
@@ -168,10 +170,10 @@ class StudentController extends Controller
             'celular' => $validatedData['celular'],
             'correo' => $validatedData['correo'],
             'uid' => strtoupper($validatedData['uid']),
-            'estado' => $validatedData['estado'],
+            'estado' => $estado,
+            'last_action' => $validatedData['last_action'],
         ]);
 
-        // 4. Si el UID ha cambiado, actualizar la tabla 'asistencias' con el nuevo UID.
         if ($request->uid !== $oldUid) {
             try {
                 DB::table('asistencias')
@@ -179,7 +181,6 @@ class StudentController extends Controller
                     ->update(['uid' => strtoupper($request->uid)]);
             } catch (\Exception $e) {
                 Log::error('Error al actualizar asistencias: ' . $e->getMessage());
-                // Si esto falla, podrías revertir la actualización del estudiante o simplemente registrar el error.
                 return redirect()->back()->with('error', 'El estudiante fue actualizado, pero no se pudo actualizar su asistencia. Contacte a un administrador.');
             }
         }

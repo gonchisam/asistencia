@@ -14,7 +14,6 @@
         @stack('styles') {{-- Para CSS específico de alguna vista --}}
 
         @vite(['resources/css/app.css', 'resources/js/app.js']) {{-- Si usas Vite --}}
-        @stack('scripts') {{-- Para JS específico de alguna vista --}}
 
         <style>
             /* Estilos adicionales si los necesitas, por ejemplo para el dropdown del usuario */
@@ -48,14 +47,16 @@
                                     Registrar Estudiante
                                 </a>
                             </li>
-                            <li>
-                                <a href="{{ route('configuracion.index') }}" class="inline-flex items-center py-2 px-4 hover:text-blue-400 focus:outline-none transition duration-150 ease-in-out {{ request()->routeIs('configuracion.index') ? 'text-blue-600 border-b-2 border-blue-600' : '' }}">
-                                    Configuración
-                                </a>
-                            </li>
+                            
                             <li>
                                 <a href="{{ route('reportes.index') }}" class="inline-flex items-center py-2 px-4 hover:text-blue-400 focus:outline-none transition duration-150 ease-in-out {{ request()->routeIs('reportes.index') ? 'text-blue-600 border-b-2 border-blue-600' : '' }}">
                                     Reportes
+                                </a>
+                            </li>
+                            {{-- AÑADE ESTA LÍNEA PARA EL NUEVO ENLACE --}}
+                            <li>
+                                <a href="{{ route('estadisticas.index') }}" class="inline-flex items-center py-2 px-4 hover:text-blue-400 focus:outline-none transition duration-150 ease-in-out {{ request()->routeIs('estadisticas.index') ? 'text-blue-600 border-b-2 border-blue-600' : '' }}">
+                                    Estadísticas
                                 </a>
                             </li>
                         </ul>
@@ -90,16 +91,6 @@
                 </div>
             </header>
 
-            {{--
-            @if (isset($header))
-                <header class="bg-white shadow">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                        {{ $header }}
-                    </div>
-                </header>
-            @endif
-            --}}
-
             <main class="flex-grow container mx-auto px-4 py-8">
                 @yield('content')
             </main>
@@ -132,5 +123,8 @@
             // Llama una vez al cargar para mostrarla inmediatamente
             updateDateTime();
         </script>
+        {{-- MUEVE ESTE SCRIPT AL FINAL DEL ARCHIVO PARA OPTIMIZAR LA CARGA DE LA PÁGINA --}}
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        @stack('scripts')
     </body>
 </html>

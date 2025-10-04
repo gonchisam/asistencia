@@ -38,6 +38,10 @@
         .filters p {
             margin: 5px 0;
         }
+        .total-row {
+            font-weight: bold;
+            background-color: #e8f5e9;
+        }
     </style>
 </head>
 <body>
@@ -48,7 +52,7 @@
         <p><strong>Fecha Inicio:</strong> {{ $request->fecha_inicio ? \Carbon\Carbon::parse($request->fecha_inicio)->format('d/m/Y') : 'Todas' }}</p>
         <p><strong>Fecha Fin:</strong> {{ $request->fecha_fin ? \Carbon\Carbon::parse($request->fecha_fin)->format('d/m/Y') : 'Todas' }}</p>
         <p><strong>Estudiante:</strong>
-            @if ($request->estudiante_id)
+            @if ($request->filled('estudiante_id'))
                 @php
                     $estudiante = \App\Models\Estudiante::find($request->estudiante_id);
                 @endphp
@@ -57,6 +61,9 @@
                 Todos
             @endif
         </p>
+        <p><strong>Carrera:</strong> {{ $request->carrera ?: 'Todas' }}</p>
+        <p><strong>Año de Estudio:</strong> {{ $request->anio_estudio ?: 'Todos' }}</p>
+        <p><strong>CI:</strong> {{ $request->ci ?: 'Todos' }}</p>
         <p><strong>Acción:</strong> {{ $request->accion ?: 'Todas' }}</p>
         <p><strong>Modo:</strong> {{ $request->modo ?: 'Todos' }}</p>
     </div>
@@ -64,8 +71,11 @@
     <table>
         <thead>
             <tr>
-                <th>UID</th>
                 <th>Nombre</th>
+                <th>UID</th>
+                <th>CI</th>
+                <th>Carrera</th>
+                <th>Año</th>
                 <th>Acción</th>
                 <th>Modo</th>
                 <th>Fecha y Hora</th>
@@ -74,17 +84,26 @@
         <tbody>
             @forelse ($asistencias as $asistencia)
                 <tr>
-                    <td>{{ $asistencia->uid }}</td>
-                    <td>{{ $asistencia->nombre }}</td>
+                    <td>{{ $asistencia->estudiante->nombre }}</td>
+                    <td>{{ $asistencia->estudiante->uid }}</td>
+                    <td>{{ $asistencia->estudiante->ci }}</td>
+                    <td>{{ $asistencia->estudiante->carrera }}</td>
+                    <td>{{ $asistencia->estudiante->año }}</td>
                     <td>{{ $asistencia->accion }}</td>
                     <td>{{ $asistencia->modo }}</td>
-                    <td>{{ $asistencia->fecha_hora->format('d/m/Y H:i:s') }}</td>
+                    <td>{{ $asistencia->created_at->format('d/m/Y H:i:s') }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="5" style="text-align: center;">No se encontraron asistencias con los filtros aplicados.</td>
+                    <td colspan="8" style="text-align: center;">No se encontraron asistencias con los filtros aplicados.</td>
                 </tr>
             @endforelse
+            @if($asistencias->isNotEmpty())
+            <tr class="total-row">
+                <td colspan="7">Total de Asistencias:</td>
+                <td>{{ $asistencias->count() }}</td>
+            </tr>
+            @endif
         </tbody>
     </table>
 </body>

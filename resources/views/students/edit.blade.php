@@ -2,9 +2,16 @@
 
 @section('content')
 <div class="container mx-auto p-6">
-    <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">
-        Editar Estudiante: {{ $student->nombre }} {{ $student->primer_apellido }} {{ $student->segundo_apellido }}
-    </h1>
+    <div class="flex items-center justify-center mb-6"> {{-- Added a flex container here --}}
+        <a href="{{ route('students.index') }}" class="mr-4 bg-gray-200 hover:bg-gray-300 text-gray-800 p-2 rounded-full transition duration-150 flex items-center justify-center" title="Regresar">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+        </a>
+        <h1 class="text-3xl font-bold text-gray-800">
+            Editar Estudiante: {{ $student->nombre }} {{ $student->primer_apellido }} {{ $student->segundo_apellido }}
+        </h1>
+    </div>
 
     <div class="bg-white rounded-lg shadow p-6 max-w-4xl mx-auto">
         {{-- Muestra los mensajes de éxito o error del servidor --}}
@@ -82,14 +89,30 @@
 
                 <div class="space-y-4">
                     <div>
+                        <label for="celular" class="block text-sm font-medium text-gray-700">Celular (opcional):</label>
+                        <input type="text" name="celular" id="celular" value="{{ old('celular', $student->celular) }}"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('celular') border-red-500 @enderror">
+                        @error('celular')
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label for="correo" class="block text-sm font-medium text-gray-700">Correo Electrónico:</label>
+                        <input type="email" name="correo" id="correo" value="{{ old('correo', $student->correo) }}"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('correo') border-red-500 @enderror" required>
+                        @error('correo')
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
                         <label for="carrera" class="block text-sm font-medium text-gray-700">Carrera:</label>
                         <select name="carrera" id="carrera"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('carrera') border-red-500 @enderror" required>
                             <option value="">Seleccione...</option>
-                            <option value="Contabilidad" {{ old('carrera', $student->carrera) == 'Contabilidad' ? 'selected' : '' }}>Contabilidad</option>
-                            <option value="Secretariado" {{ old('carrera', $student->carrera) == 'Secretariado' ? 'selected' : '' }}>Secretariado</option>
-                            <option value="Mercadotecnia" {{ old('carrera', $student->carrera) == 'Mercadotecnia' ? 'selected' : '' }}>Mercadotecnia</option>
-                            <option value="Sistemas" {{ old('carrera', $student->carrera) == 'Sistemas' ? 'selected' : '' }}>Sistemas</option>
+                            <option value="Contabilidad" {{ old('carrera', $student->carrera) == 'Contabilidad' ? 'selected' : '' }}>CONTABILIDAD</option>
+                            <option value="Secretariado" {{ old('carrera', $student->carrera) == 'Secretariado' ? 'selected' : '' }}>SECRETARIADO</option>
+                            <option value="Mercadotecnia" {{ old('carrera', $student->carrera) == 'Mercadotecnia' ? 'selected' : '' }}>MERCADOTECNIA</option>
+                            <option value="Sistemas" {{ old('carrera', $student->carrera) == 'Sistemas' ? 'selected' : '' }}>SISTEMAS</option>
                         </select>
                         @error('carrera')
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
@@ -100,9 +123,9 @@
                         <select name="año" id="año"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('año') border-red-500 @enderror" required>
                             <option value="">Seleccione...</option>
-                            <option value="Primer Año" {{ old('año', $student->año) == 'Primer Año' ? 'selected' : '' }}>Primer Año</option>
-                            <option value="Segundo Año" {{ old('año', $student->año) == 'Segundo Año' ? 'selected' : '' }}>Segundo Año</option>
-                            <option value="Tercer Año" {{ old('año', $student->año) == 'Tercer Año' ? 'selected' : '' }}>Tercer Año</option>
+                            <option value="Primer Año" {{ old('año', $student->año) == 'Primer Año' ? 'selected' : '' }}>PRIMER AÑO</option>
+                            <option value="Segundo Año" {{ old('año', $student->año) == 'Segundo Año' ? 'selected' : '' }}>SEGUNDO AÑO</option>
+                            <option value="Tercer Año" {{ old('año', $student->año) == 'Tercer Año' ? 'selected' : '' }}>TERCER AÑO</option>
                         </select>
                         @error('año')
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
@@ -110,8 +133,11 @@
                     </div>
                     <div>
                         <label for="fecha_nacimiento" class="block text-sm font-medium text-gray-700">Fecha de Nacimiento:</label>
-                        <input type="date" name="fecha_nacimiento" id="fecha_nacimiento" value="{{ old('fecha_nacimiento', $student->fecha_nacimiento) }}"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('fecha_nacimiento') border-red-500 @enderror" required>
+                        <input type="date" name="fecha_nacimiento" id="fecha_nacimiento" value="{{ old('fecha_nacimiento', $student->fecha_nacimiento ? $student->fecha_nacimiento->format('Y-m-d') : '') }}"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('fecha_nacimiento') border-red-500 @enderror" 
+                            required 
+                            min="1940-01-01" 
+                            max="{{ now()->subYears(15)->format('Y-m-d') }}">
                         @error('fecha_nacimiento')
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
@@ -131,37 +157,18 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div>
-                    <label for="celular" class="block text-sm font-medium text-gray-700">Celular (opcional):</label>
-                    <input type="text" name="celular" id="celular" value="{{ old('celular', $student->celular) }}"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('celular') border-red-500 @enderror">
-                    @error('celular')
-                        <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
-                    @enderror
-                </div>
-                <div>
-                    <label for="correo" class="block text-sm font-medium text-gray-700">Correo Electrónico:</label>
-                    <input type="email" name="correo" id="correo" value="{{ old('correo', $student->correo) }}"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('correo') border-red-500 @enderror" required>
-                    @error('correo')
-                        <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
-                    @enderror
-                </div>
-            </div>
-
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
                 <div class="flex items-center">
                     {{-- Campo oculto para asegurar que el estado se envía cuando el checkbox está desmarcado --}}
                     <input type="hidden" name="estado" value="0">
                     <input type="checkbox" name="estado" id="estado" value="1" {{ old('estado', $student->estado) ? 'checked' : '' }}
-                            class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
                     <label for="estado" class="ml-2 block text-sm font-medium text-gray-700">Estudiante Activo</label>
                 </div>
                 <div>
                     <label for="last_action" class="block text-sm font-medium text-gray-700">Última Acción Registrada:</label>
                     <select name="last_action" id="last_action"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('last_action') border-red-500 @enderror">
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('last_action') border-red-500 @enderror">
                         <option value="">Ninguna</option>
                         <option value="ENTRADA" {{ old('last_action', $student->last_action) == 'ENTRADA' ? 'selected' : '' }}>ENTRADA</option>
                         <option value="SALIDA" {{ old('last_action', $student->last_action) == 'SALIDA' ? 'selected' : '' }}>SALIDA</option>
@@ -186,10 +193,10 @@
 
 <script>
     function convertirMayusculas() {
-        const campos = ['uid', 'nombre', 'primer_apellido', 'segundo_apellido']; // Agregamos 'uid' aquí
+        const campos = ['uid', 'nombre', 'primer_apellido', 'segundo_apellido', 'ci'];
         campos.forEach(id => {
             const campo = document.getElementById(id);
-            if (campo && campo.value) { // Verifica si el campo existe y tiene valor
+            if (campo && campo.value) {
                 campo.value = campo.value.toUpperCase();
             }
         });
@@ -202,17 +209,15 @@
         const uidStatus = document.getElementById('uid-status');
         let pollInterval = null;
 
-        // Función para iniciar el polling
         function startPolling() {
             if (pollInterval) {
-                clearInterval(pollInterval); // Detiene cualquier polling existente
+                clearInterval(pollInterval);
             }
-            pollInterval = setInterval(pollForUid, 1000); // Poll cada 1 segundo
+            pollInterval = setInterval(pollForUid, 1000);
             uidStatus.textContent = 'Esperando escaneo RFID...';
             uidStatus.className = 'text-sm text-gray-500 font-medium';
         }
 
-        // Función para detener el polling
         function stopPolling() {
             if (pollInterval) {
                 clearInterval(pollInterval);
@@ -220,9 +225,8 @@
             }
         }
 
-        // Función para obtener el UID temporal del backend
         function pollForUid() {
-            fetch('/api/get-uid') // Asegúrate de que esta ruta esté definida en web.php o api.php
+            fetch('/api/get-uid')
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Respuesta de red no ok al obtener UID temporal');
@@ -231,8 +235,8 @@
                 })
                 .then(data => {
                     if (data.uid && uidInput.value !== data.uid) {
-                        uidInput.value = data.uid; // Actualiza el campo UID con el nuevo valor
-                        stopPolling(); // Detiene el polling una vez que se obtiene un UID
+                        uidInput.value = data.uid;
+                        stopPolling();
                         uidStatus.textContent = '¡UID escaneado con éxito! Ahora puedes editar los datos.';
                         uidStatus.className = 'text-sm text-green-500 font-bold';
                     }
@@ -244,27 +248,24 @@
                 });
         }
 
-        // Event listener para el botón de escanear
         pollButton.addEventListener('click', function(e) {
             e.preventDefault();
-            uidInput.value = ''; // Limpia el campo UID al iniciar el escaneo
+            uidInput.value = '';
             startPolling();
         });
 
-        // Event listener para el input UID (si el usuario escribe manualmente)
         uidInput.addEventListener('input', function() {
-            this.value = this.value.toUpperCase(); // Convertir a mayúsculas al escribir
-            stopPolling(); // Detener el polling si el usuario empieza a escribir
-            uidStatus.textContent = ''; // Limpiar el mensaje de estado
+            this.value = this.value.toUpperCase();
+            stopPolling();
+            uidStatus.textContent = '';
         });
 
-        // Event listener para el campo celular (limpiar caracteres no numéricos)
         const celularInput = document.getElementById('celular');
         if (celularInput) {
             celularInput.addEventListener('input', function() {
-                this.value = this.value.replace(/[a-zA-Z]/g, ''); // Eliminar letras al escribir
+                this.value = this.value.replace(/[a-zA-Z]/g, '');
             });
         }
     });
 </script>
-@endsection 
+@endsection

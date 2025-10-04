@@ -2,24 +2,32 @@
 
 @section('content')
 <div class="container mx-auto p-6">
-    <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Registrar Nuevo Estudiante</h1>
+    <div class="flex items-center justify-center mb-6">
+        <a href="{{ route('students.index') }}" class="mr-4 bg-gray-200 hover:bg-gray-300 text-gray-800 p-2 rounded-full transition duration-150 flex items-center justify-center" title="Regresar">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+        </a>
+        <h1 class="text-3xl font-bold text-gray-800">Registrar Nuevo Estudiante</h1>
+    </div>
 
     <div class="bg-white rounded-lg shadow p-6 max-w-4xl mx-auto">
         <form id="student-form" action="{{ route('students.store') }}" method="POST" onsubmit="return convertirMayusculas()" autocomplete="off">
             @csrf
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{-- Columna 1 --}}
                 <div class="space-y-4">
+                    {{-- 1. UID --}}
                     <div>
                         <label for="uid" class="block text-sm font-medium text-gray-700">UID (Código RFID):</label>
                         <div class="flex items-center space-x-2">
                             <input type="text" name="uid" id="uid" value="{{ old('uid') }}"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('uid') border-red-500 @enderror" required>
-                            {{-- Botón con ícono de refrescar (flechas circulares) --}}
                             <a href="{{ route('students.create') }}" class="inline-block align-middle bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 text-sm" id="refresh-button">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
                             </a>
                         </div>
                         <p id="uid-status" class="mt-1 text-sm font-medium"></p>
@@ -27,6 +35,8 @@
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
+                    
+                    {{-- 2. Nombres --}}
                     <div>
                         <label for="nombre" class="block text-sm font-medium text-gray-700">Nombres:</label>
                         <input type="text" name="nombre" id="nombre" value="{{ old('nombre') }}"
@@ -35,6 +45,8 @@
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    {{-- 3. Primer Apellido --}}
                     <div>
                         <label for="primer_apellido" class="block text-sm font-medium text-gray-700">Primer Apellido:</label>
                         <input type="text" name="primer_apellido" id="primer_apellido" value="{{ old('primer_apellido') }}"
@@ -43,6 +55,8 @@
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    {{-- 4. Segundo Apellido --}}
                     <div>
                         <label for="segundo_apellido" class="block text-sm font-medium text-gray-700">Segundo Apellido (opcional):</label>
                         <input type="text" name="segundo_apellido" id="segundo_apellido" value="{{ old('segundo_apellido') }}"
@@ -51,6 +65,8 @@
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    {{-- 5. Número de CI --}}
                     <div>
                         <label for="ci" class="block text-sm font-medium text-gray-700">Número de CI:</label>
                         <input type="text" name="ci" id="ci" value="{{ old('ci') }}"
@@ -59,9 +75,31 @@
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    {{-- 6. Celular --}}
+                    <div>
+                        <label for="celular" class="block text-sm font-medium text-gray-700">Celular (opcional):</label>
+                        <input type="text" name="celular" id="celular" value="{{ old('celular') }}"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('celular') border-red-500 @enderror" disabled>
+                        @error('celular')
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
                 </div>
 
+                {{-- Columna 2 --}}
                 <div class="space-y-4">
+                    {{-- 7. Correo Electrónico --}}
+                    <div>
+                        <label for="correo" class="block text-sm font-medium text-gray-700">Correo Electrónico:</label>
+                        <input type="email" name="correo" id="correo" value="{{ old('correo') }}"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('correo') border-red-500 @enderror" required disabled>
+                        @error('correo')
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    
+                    {{-- 8. Carrera --}}
                     <div>
                         <label for="carrera" class="block text-sm font-medium text-gray-700">Carrera:</label>
                         <select name="carrera" id="carrera"
@@ -76,8 +114,10 @@
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    {{-- 9. Año de estudio --}}
                     <div>
-                        <label for="año" class="block text-sm font-medium text-gray-700">Año:</label>
+                        <label for="año" class="block text-sm font-medium text-gray-700">Año de estudio:</label>
                         <select name="año" id="año"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('año') border-red-500 @enderror" required disabled>
                             <option value="">Seleccione...</option>
@@ -89,14 +129,23 @@
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    {{-- 10. Fecha de Nacimiento --}}
                     <div>
                         <label for="fecha_nacimiento" class="block text-sm font-medium text-gray-700">Fecha de Nacimiento:</label>
+                        {{-- Se establecen los límites para el campo de fecha --}}
+                        {{-- Máximo: 15 años atrás desde hoy. Mínimo: 1 de enero de 1940. --}}
                         <input type="date" name="fecha_nacimiento" id="fecha_nacimiento" value="{{ old('fecha_nacimiento') }}"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('fecha_nacimiento') border-red-500 @enderror" required disabled>
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('fecha_nacimiento') border-red-500 @enderror" 
+                            required disabled 
+                            min="1940-01-01" 
+                            max="{{ now()->subYears(15)->format('Y-m-d') }}">
                         @error('fecha_nacimiento')
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    {{-- 11. Sexo --}}
                     <div>
                         <label for="sexo" class="block text-sm font-medium text-gray-700">Sexo:</label>
                         <select name="sexo" id="sexo"
@@ -109,25 +158,6 @@
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div>
-                    <label for="celular" class="block text-sm font-medium text-gray-700">Celular (opcional):</label>
-                    <input type="text" name="celular" id="celular" value="{{ old('celular') }}"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('celular') border-red-500 @enderror" disabled>
-                    @error('celular')
-                        <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
-                    @enderror
-                </div>
-                <div>
-                    <label for="correo" class="block text-sm font-medium text-gray-700">Correo Electrónico:</label>
-                    <input type="email" name="correo" id="correo" value="{{ old('correo') }}"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('correo') border-red-500 @enderror" required disabled>
-                    @error('correo')
-                        <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
-                    @enderror
                 </div>
             </div>
 
@@ -158,7 +188,10 @@
         const celularInput = document.getElementById('celular');
         const uidStatus = document.getElementById('uid-status');
         const submitButton = document.getElementById('submit-button');
-        const formFields = document.querySelectorAll('#student-form input:not([name="uid"]), #student-form select');
+        const formFields = document.querySelectorAll(
+            '#student-form input:not([name="uid"]), ' +
+            '#student-form select'
+        );
 
         let pollInterval = null;
         let formSubmitted = false;
@@ -172,8 +205,8 @@
         }
 
         uidInput.disabled = false;
-        celularInput.disabled = false;
-        
+        enableForm(false);
+
         function pollForUid() {
             if (formSubmitted || isManualMode) return;
 
@@ -262,7 +295,6 @@
         let typingTimer;
         const doneTypingInterval = 1500;
 
-        // Convierte a mayúsculas al escribir
         uidInput.addEventListener('input', function() {
             this.value = this.value.toUpperCase();
             
@@ -270,12 +302,10 @@
             typingTimer = setTimeout(checkUid, doneTypingInterval);
         });
 
-        // Elimina letras y convierte a mayúsculas para el campo celular
         celularInput.addEventListener('input', function() {
             this.value = this.value.replace(/[a-zA-Z]/g, '');
         });
 
-        // Detiene el polling y activa el modo manual al ENFOCAR el campo de UID
         uidInput.addEventListener('focus', function() {
             isManualMode = true;
             stopPolling();
@@ -283,7 +313,6 @@
             uidStatus.className = 'text-sm text-blue-500 font-medium';
         });
 
-        // Control de salida del campo
         uidInput.addEventListener('blur', function() {
             if (uidInput.value.trim() === '') {
                 isManualMode = false;
@@ -292,11 +321,6 @@
             } else {
                 checkUid();
             }
-        });
-
-        document.addEventListener('load', function() {
-            isManualMode = false;
-            startPolling();
         });
     });
 </script>

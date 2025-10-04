@@ -6,6 +6,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\ConfiguracionController;
 use App\Http\Controllers\ReportesController;
+use App\Http\Controllers\EstadisticasController;
 
 /*
 |--------------------------------------------------------------------------
@@ -43,6 +44,8 @@ Route::middleware('auth')->group(function () {
 
     // Verifica si un UID ya existe (esta ruta sí necesita autenticación)
     Route::post('/students/check-uid', [StudentController::class, 'checkUid'])->name('students.check_uid');
+
+    Route::get('/estadisticas', [EstadisticasController::class, 'index'])->name('estadisticas.index');
 });
 
 // NUEVAS RUTAS PÚBLICAS PARA COMUNICACIÓN CON EL DISPOSITIVO ARDUINO
