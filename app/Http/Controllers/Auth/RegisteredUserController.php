@@ -35,21 +35,30 @@ class RegisteredUserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            // Agregamos la regla de validación para la API Key
             'api_key' => ['required', 'string'],
+            'role' => ['required', 'string', 'in:administrador,docente'],
+        ], [
+            // Mensajes personalizados en español
+            'email.unique' => 'El correo electrónico ya ha sido registrado.',
+            'password.confirmed' => 'La confirmación de la contraseña no coincide.',
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'api_key.required' => 'El código de autenticación es requerido.',
+            'role.required' => 'El rol es requerido.',
+            'role.in' => 'El rol seleccionado no es válido.',
         ]);
 
         // Verificamos si la API Key es la correcta
         if ($request->api_key !== config('app.registration_key')) {
             throw ValidationException::withMessages([
-                'api_key' => __('El Código de Autenticación proporcionada no es válida.'),
-            ]);       
+                'api_key' => 'El Código de Autenticación proporcionado no es válido.',
+            ]);
         }
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'role' => $request->role,
         ]);
 
         event(new Registered($user));

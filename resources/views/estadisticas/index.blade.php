@@ -23,7 +23,9 @@
         {{-- FIN: Encabezado para impresión (PDF) --}}
 
         <div class="flex flex-wrap justify-between items-center mb-6 no-print">
-            <h1 class="text-3xl font-bold text-gray-800">Reportes de Asistencia</h1>
+            <h1 class="text-3xl font-bold text-gray-800">
+            <span class="text-blue-600">Reportes de Asistencia</span>
+            </h1>
             <div class="flex items-center gap-2">
                 {{-- Botones de acción --}}
                 <button id="toggleChartTypeBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
@@ -38,56 +40,106 @@
             </div>
         </div>
 
-        <div id="charts-container" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {{-- ... tus gráficos aquí ... --}}
-            <div class="bg-white p-6 rounded-lg shadow-md chart-card">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4">Asistencia Diaria</h2>
-                <div style="height: 300px;"><canvas id="asistenciaDiariaChart"></canvas></div>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow-md chart-card">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4">Horas Pico</h2>
-                <div style="height: 300px;"><canvas id="horasPicoChart"></canvas></div>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow-md chart-card">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4">Asistencia por Carrera</h2>
-                <div style="height: 300px;"><canvas id="asistenciaPorCarreraChart"></canvas></div>
+        {{-- Pestañas principales --}}
+        <div class="mb-6 no-print">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8">
+                    <button id="tab-graficos" class="tab-button py-2 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600 focus:outline-none active">
+                        Gráficos de Asistencia
+                    </button>
+                    <button id="tab-estudiantes" class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none">
+                        Estudiantes en Riesgo
+                    </button>
+                </nav>
             </div>
         </div>
 
-        <div id="risk-students-table" class="bg-white p-6 rounded-lg shadow-md">
-            {{-- ... tu tabla de estudiantes en riesgo ... --}}
-            <h2 class="text-xl font-semibold text-gray-700 mb-4">Estudiantes en Riesgo</h2>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Nombre Completo
-                            </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Asistencias
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        @forelse ($estudiantesEnRiesgo as $estudiante)
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {{ $estudiante->nombre }} {{ $estudiante->primer_apellido }} {{ $estudiante->segundo_apellido }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {{ $estudiante->total_asistencias }}
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="2" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                                    No hay estudiantes con baja asistencia en este momento.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+        {{-- Contenido de las pestañas --}}
+        <div id="tab-content">
+            {{-- Contenido de la pestaña Gráficos --}}
+            <div id="graficos-content" class="tab-pane active">
+                {{-- Subpestañas para gráficos --}}
+                <div class="mb-6 no-print">
+                    <div class="border-b border-gray-200">
+                        <nav class="-mb-px flex space-x-6">
+                            <button id="subtab-diaria" class="subtab-button py-2 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600 focus:outline-none active">
+                                Asistencia Diaria
+                            </button>
+                            <button id="subtab-horas" class="subtab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none">
+                                Horas Pico
+                            </button>
+                            <button id="subtab-carrera" class="subtab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none">
+                                Asistencia por Carrera
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+
+                {{-- Contenido de subpestañas --}}
+                <div id="subtab-content">
+                    {{-- Subpestaña Asistencia Diaria --}}
+                    <div id="diaria-content" class="subtab-pane active">
+                        <div class="bg-white p-6 rounded-lg shadow-md chart-card">
+                            <h2 class="text-xl font-semibold text-gray-700 mb-4">Asistencia Diaria</h2>
+                            <div style="height: 500px;"><canvas id="asistenciaDiariaChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    {{-- Subpestaña Horas Pico --}}
+                    <div id="horas-content" class="subtab-pane hidden">
+                        <div class="bg-white p-6 rounded-lg shadow-md chart-card">
+                            <h2 class="text-xl font-semibold text-gray-700 mb-4">Horas Pico</h2>
+                            <div style="height: 500px;"><canvas id="horasPicoChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    {{-- Subpestaña Asistencia por Carrera --}}
+                    <div id="carrera-content" class="subtab-pane hidden">
+                        <div class="bg-white p-6 rounded-lg shadow-md chart-card">
+                            <h2 class="text-xl font-semibold text-gray-700 mb-4">Asistencia por Carrera</h2>
+                            <div style="height: 500px;"><canvas id="asistenciaPorCarreraChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Contenido de la pestaña Estudiantes en Riesgo --}}
+            <div id="estudiantes-content" class="tab-pane hidden">
+                <div id="risk-students-table" class="bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Estudiantes en Riesgo</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Nombre Completo
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Asistencias
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                @forelse ($estudiantesEnRiesgo as $estudiante)
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                            {{ $estudiante->nombre }} {{ $estudiante->primer_apellido }} {{ $estudiante->segundo_apellido }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {{ $estudiante->total_asistencias }}
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="2" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                            No hay estudiantes con baja asistencia en este momento.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -103,7 +155,7 @@
         }
         /* Hace visible solo el encabezado, los gráficos y sus contenedores */
         .printable-header, .printable-header *,
-        #charts-container, #charts-container * {
+        #subtab-content, #subtab-content * {
             visibility: visible;
         }
         .printable-header {
@@ -115,7 +167,7 @@
             padding: 20px;
             z-index: 9999;
         }
-        #charts-container {
+        #subtab-content {
             margin-top: 150px; /* Ajusta el margen para que no se solape con el encabezado */
             position: absolute;
             left: 0;
@@ -129,12 +181,21 @@
         .no-print, #risk-students-table {
             display: none !important;
         }
+        /* Muestra todas las subpestañas al imprimir */
+        .subtab-pane {
+            display: block !important;
+            margin-bottom: 30px;
+        }
+    }
+
+    /* Estilos para mejorar la visualización de las subpestañas */
+    .subtab-pane {
+        transition: all 0.3s ease;
     }
 </style>
 @endpush
 
 @push('scripts')
-    {{-- Tu script de Chart.js permanece igual que en la versión anterior --}}
     <script>
         const asistenciaDiariaData = @json($asistenciaDiaria);
         const horasPicoData = @json($horasPico);
@@ -150,8 +211,54 @@
         ];
 
         const chartConfigs = {
-            pie: { type: 'pie', options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }}},
-            bar: { type: 'bar', options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, animation: { duration: 0 }}}
+            pie: { 
+                type: 'pie', 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    animation: { duration: 0 },
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            bar: { 
+                type: 'bar', 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    scales: { 
+                        y: { 
+                            beginAtZero: true,
+                            ticks: {
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        }
+                    }, 
+                    animation: { duration: 0 },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            }
         };
 
         function createChart(elementId, labels, data, label, defaultType = 'pie') {
@@ -184,19 +291,82 @@
             createChart('asistenciaPorCarreraChart', asistenciaPorCarreraData.map(item => `${item.carrera} - ${item.año}`), asistenciaPorCarreraData.map(item => item.total_asistencias), 'Asistencias por Carrera y Año', type);
         }
 
+        // Inicializar gráficos
         renderCharts(currentChartType);
 
+        // Funcionalidad para cambiar tipo de gráfico
         document.getElementById('toggleChartTypeBtn').addEventListener('click', () => {
             currentChartType = currentChartType === 'pie' ? 'bar' : 'pie';
             document.getElementById('toggleChartTypeBtn').textContent = currentChartType === 'pie' ? 'Ver como Barras' : 'Ver como Torta';
             renderCharts(currentChartType);
         });
 
+        // Funcionalidad para exportar PDF
         document.getElementById('exportPdfBtn').addEventListener('click', () => {
+            // Asegurarse de que estamos en la pestaña de gráficos para la exportación
+            switchTab('graficos');
             renderCharts(currentChartType);
             setTimeout(() => {
                 window.print();
             }, 500);
         });
+
+        // Funcionalidad para las pestañas principales
+        function switchTab(tabId) {
+            // Ocultar todos los contenidos de pestañas
+            document.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.add('hidden');
+                pane.classList.remove('active');
+            });
+            
+            // Remover estilos activos de todas las pestañas
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('border-blue-500', 'text-blue-600');
+                button.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            // Mostrar el contenido de la pestaña seleccionada
+            document.getElementById(`${tabId}-content`).classList.remove('hidden');
+            document.getElementById(`${tabId}-content`).classList.add('active');
+            
+            // Aplicar estilos a la pestaña activa
+            document.getElementById(`tab-${tabId}`).classList.remove('border-transparent', 'text-gray-500');
+            document.getElementById(`tab-${tabId}`).classList.add('border-blue-500', 'text-blue-600');
+        }
+
+        // Funcionalidad para las subpestañas
+        function switchSubTab(subTabId) {
+            // Ocultar todos los contenidos de subpestañas
+            document.querySelectorAll('.subtab-pane').forEach(pane => {
+                pane.classList.add('hidden');
+                pane.classList.remove('active');
+            });
+            
+            // Remover estilos activos de todas las subpestañas
+            document.querySelectorAll('.subtab-button').forEach(button => {
+                button.classList.remove('border-blue-500', 'text-blue-600');
+                button.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            // Mostrar el contenido de la subpestaña seleccionada
+            document.getElementById(`${subTabId}-content`).classList.remove('hidden');
+            document.getElementById(`${subTabId}-content`).classList.add('active');
+            
+            // Aplicar estilos a la subpestaña activa
+            document.getElementById(`subtab-${subTabId}`).classList.remove('border-transparent', 'text-gray-500');
+            document.getElementById(`subtab-${subTabId}`).classList.add('border-blue-500', 'text-blue-600');
+        }
+
+        // Agregar event listeners a las pestañas principales
+        document.getElementById('tab-graficos').addEventListener('click', () => switchTab('graficos'));
+        document.getElementById('tab-estudiantes').addEventListener('click', () => switchTab('estudiantes'));
+
+        // Agregar event listeners a las subpestañas
+        document.getElementById('subtab-diaria').addEventListener('click', () => switchSubTab('diaria'));
+        document.getElementById('subtab-horas').addEventListener('click', () => switchSubTab('horas'));
+        document.getElementById('subtab-carrera').addEventListener('click', () => switchSubTab('carrera'));
+
+        // Inicializar con la primera subpestaña activa
+        switchSubTab('diaria');
     </script>
-@endpush
+@endpush    
