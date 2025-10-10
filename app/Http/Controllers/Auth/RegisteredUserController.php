@@ -42,7 +42,7 @@ class RegisteredUserController extends Controller
         // Verificamos si la API Key es la correcta
         if ($request->api_key !== config('app.registration_key')) {
             throw ValidationException::withMessages([
-                'api_key' => __('La API Key proporcionada no es válida.'),
+                'api_key' => __('El Código de Autenticación proporcionada no es válida.'),
             ]);       
         }
 

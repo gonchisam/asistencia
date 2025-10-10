@@ -50,5 +50,11 @@ Route::middleware('auth')->group(function () {
 
 // NUEVAS RUTAS PÚBLICAS PARA COMUNICACIÓN CON EL DISPOSITIVO ARDUINO
 // Estas rutas no requieren autenticación
-Route::post('/api/rfid-scan', [StudentController::class, 'receiveUid']);
-Route::get('/api/get-uid', [StudentController::class, 'getTempUid']);
+    Route::post('/api/rfid-scan', [StudentController::class, 'receiveUid']);
+    Route::get('/api/get-uid', [StudentController::class, 'getTempUid']);
+
+    // ... otras rutas
+    Route::get('/estadisticas', [EstadisticasController::class, 'index'])->name('estadisticas.index');
+    // AÑADIR ESTA LÍNEA
+    Route::get('/estadisticas/exportar', [EstadisticasController::class, 'exportarExcel'])->name('estadisticas.exportarExcel');
+// ...

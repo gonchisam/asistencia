@@ -3,19 +3,19 @@
         @csrf
 
         <div>
-            <x-input-label for="name" :value="__('Name')" />
+            <x-input-label for="name" :value="__('Nombre Completo')" />
             <x-text-input id="name" class="block mt-1 w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
             <x-input-error :messages="$errors->get('name')" class="mt-2" />
         </div>
 
         <div class="mt-4">
-            <x-input-label for="email" :value="__('Email')" />
+            <x-input-label for="email" :value="__('Correo Electrónico')" />
             <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autocomplete="username" />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 
         <div class="mt-4 relative">
-            <x-input-label for="password" :value="__('Password')" />
+            <x-input-label for="password" :value="__('Contraseña')" />
             <div class="relative flex items-center">
                 <x-text-input id="password" class="block w-full pr-10"
                               type="password"
@@ -36,7 +36,7 @@
         </div>
 
         <div class="mt-4 relative">
-            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
+            <x-input-label for="password_confirmation" :value="__('Confirme Contraseña')" />
             <div class="relative flex items-center">
                 <x-text-input id="password_confirmation" class="block w-full pr-10"
                               type="password"
@@ -56,7 +56,7 @@
         </div>
 
         <div class="mt-4 relative">
-            <x-input-label for="api_key" :value="__('API Key')" />
+            <x-input-label for="api_key" :value="__('Código de Autenticación')" />
             <div class="relative flex items-center">
                 <x-text-input id="api_key" class="block w-full pr-10" type="password" name="api_key" required />
                 <button type="button" class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center pr-3 focus:outline-none toggle-password">
@@ -73,13 +73,26 @@
             <x-input-error :messages="$errors->get('api_key')" class="mt-2" />
         </div>
 
-        <div class="flex items-center justify-end mt-4">
-            <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('login') }}">
-                {{ __('Already registered?') }}
-            </a>
-            <x-primary-button class="ms-4">
-                {{ __('Register') }}
-            </x-primary-button>
+        <div class="flex flex-col mt-6">
+            <!-- Botones principales en una fila -->
+            <div class="flex items-center justify-between w-full">
+                <!-- Botón Cancelar a la izquierda -->
+                <a href="{{ url('/') }}" class="inline-flex items-center px-4 py-2 bg-gray-300 border border-transparent rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-400 focus:bg-gray-400 active:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition ease-in-out duration-150 underline decoration-2 hover:decoration-gray-700">
+                    {{ __('Cancelar') }}
+                </a>
+                
+                <!-- Botón Registrarse a la derecha -->
+                <x-primary-button class="ms-4">
+                    {{ __('Registrarse') }}
+                </x-primary-button>
+            </div>
+
+            <!-- Enlace "¿Ya estás registrado?" debajo del botón Registrarse -->
+            <div class="flex justify-end mt-3">
+                <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('login') }}">
+                    {{ __('¿Ya estás registrado?') }}
+                </a>
+            </div>
         </div>
     </form>
 
