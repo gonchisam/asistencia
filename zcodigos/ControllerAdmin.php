@@ -86,7 +86,8 @@ unsigned long lastErrorBlink = 0;
 unsigned long lastStudentListSync = 0;
 unsigned long configModeStartTime = 0;
 unsigned long lastButtonPress = 0;
-unsigned long buttonPressStartTime = 0;  // Para controlar el tiempo de presión del botón
+unsigned long buttonPressStartTime = 0;
+// Para controlar el tiempo de presión del botón
 
 // Control de sistema
 String lastCardUID = "";
@@ -98,7 +99,8 @@ bool errorLedState = false;
 bool configMode = false;
 bool shouldRestart = false;
 bool buttonPressed = false;  // Estado del botón
-bool resetInProgress = false;  // Indica si está en proceso de reset
+bool resetInProgress = false;
+// Indica si está en proceso de reset
 
 // Control de errores
 String errorMessages[4];
@@ -138,10 +140,10 @@ void detenerLecturaRFID();
 void procesarAsistencia(String uidLeido);
 int buscarEstudiante(String uid, String &nombreEncontrado);
 bool enviarAsistenciaRapido(String uid, String accion, String modo);
+bool enviarUidDesconocido(String uid); // Nueva función para UID desconocidos
 void sincronizarPendientes();
 void sincronizarListaEstudiantes();
 void cargarListaEstudiantesDesdeSD();
-
 // === NUEVAS FUNCIONES PARA CONFIGURACIÓN ===
 void cargarConfiguracion();
 void guardarConfiguracion();
@@ -155,13 +157,13 @@ void handleScan();
 void handleNotFound();
 String escanearRedes();
 String generarPaginaConfig();
-void resetearConfiguracionWiFi();  // Nueva función para resetear configuración
+void resetearConfiguracionWiFi();
+bool configurarRTCManual(String dateStr, String timeStr); // <--- DECLARACIÓN AÑADIDA
 
 // === FUNCIONES PRINCIPALES ===
 void setup() {
     Serial.begin(115200);
     delay(200);
-    
     // Inicializar Preferences
     preferences.begin("esp32_config", false);
     
@@ -177,10 +179,9 @@ void setup() {
 void loop() {
     // Verificar botón de configuración y reset
     verificarBotonConfiguracion();
-    
+
     if (configMode) {
         manejarServidorConfig();
-        
         // Timeout del modo configuración
         if (millis() - configModeStartTime > CONFIG_MODE_TIMEOUT) {
             detenerModoConfiguracion();
@@ -210,7 +211,7 @@ void cargarConfiguracion() {
     Serial.println("Configuración cargada:");
     Serial.println("SSID: " + wifi_ssid);
     Serial.println("Server URL: " + server_url);
-    
+
     if (wifi_ssid.length() > 0) {
         conectarWiFi();
     } else {
@@ -240,15 +241,12 @@ void resetearConfiguracionWiFi() {
     // Desconectar WiFi
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
-    
     // Mostrar mensaje en LCD
     mostrarMensajeLCD("Config WiFi", "RESETEADA!", 3000);
     
     Serial.println("Configuración WiFi reseteada. Iniciando modo configuración...");
-    
     // Esperar un momento antes de iniciar modo configuración
     delay(3000);
-    
     // Iniciar modo configuración automáticamente
     iniciarModoConfiguracion();
 }
@@ -260,22 +258,19 @@ void iniciarModoConfiguracion() {
     // Configurar Access Point
     WiFi.mode(WIFI_AP);
     WiFi.softAP(ap_ssid, ap_password);
-    
     // Esperar a que el AP se active
     delay(500);
-    
     // Configurar DNS para portal cautivo - redirige TODAS las consultas DNS al ESP32
     dnsServer.start(53, "*", WiFi.softAPIP());
-    
     // Configurar rutas del servidor web
     server.on("/", handleRoot);
     server.on("/save", HTTP_POST, handleSave);
     server.on("/scan", handleScan);
-    server.on("/generate_204", handleRoot);  // Android
+    server.on("/generate_204", handleRoot);
+    // Android
     server.on("/fwlink", handleRoot);        // Microsoft
     server.on("/hotspot-detect.html", handleRoot); // Apple
     server.onNotFound(handleNotFound);
-    
     server.begin();
     
     mostrarMensajeLCD("Modo Config", WiFi.softAPIP().toString(), 0);
@@ -292,14 +287,12 @@ void detenerModoConfiguracion() {
     server.stop();
     dnsServer.stop();
     WiFi.softAPdisconnect(true);
-    
     mostrarMensajeLCD("Saliendo config...", "Reiniciando...", 2000);
     shouldRestart = true;
 }
 
 void verificarBotonConfiguracion() {
     bool currentButtonState = (digitalRead(CONFIG_BUTTON_PIN) == LOW);
-    
     // Detectar cuando se presiona el botón
     if (currentButtonState && !buttonPressed) {
         buttonPressed = true;
@@ -336,10 +329,8 @@ void verificarBotonConfiguracion() {
         (millis() - buttonPressStartTime) >= RESET_BUTTON_HOLD_TIME) {
         
         resetInProgress = true;
-        
         // Mostrar mensaje de confirmación
         mostrarMensajeLCD("RESET WiFi en", "curso...", 0);
-        
         // Parpadear LED de error rápidamente durante el reset
         for (int i = 0; i < 10; i++) {
             digitalWrite(LED_ERROR, HIGH);
@@ -356,12 +347,10 @@ void verificarBotonConfiguracion() {
     // Mostrar progreso visual durante la presión prolongada
     if (buttonPressed && !resetInProgress) {
         unsigned long pressDuration = millis() - buttonPressStartTime;
-        
         if (pressDuration >= 1000 && pressDuration < RESET_BUTTON_HOLD_TIME) {
             // Mostrar contador regresivo en LCD
             int segundosRestantes = (RESET_BUTTON_HOLD_TIME - pressDuration) / 1000;
             mostrarMensajeLCD("Reset WiFi en:", String(segundosRestantes + 1) + " segundos", 0);
-            
             // Parpadear LED de error lentamente
             if ((pressDuration / 500) % 2 == 0) {
                 digitalWrite(LED_ERROR, HIGH);
@@ -375,7 +364,6 @@ void verificarBotonConfiguracion() {
 void manejarServidorConfig() {
     dnsServer.processNextRequest();
     server.handleClient();
-    
     // Parpadear LED de error para indicar modo config
     if (millis() - lastErrorBlink > 250) {
         errorLedState = !errorLedState;
@@ -389,11 +377,26 @@ void handleRoot() {
     server.send(200, "text/html", generarPaginaConfig());
 }
 
+// --- FUNCIÓN handleSave CORREGIDA (INCLUYE RTC) ---
 void handleSave() {
-    if (server.hasArg("ssid") && server.hasArg("password") && server.hasArg("server")) {
+    // Verificar que se hayan recibido TODOS los parámetros (WiFi, Server y RTC)
+    if (server.hasArg("ssid") && server.hasArg("password") && server.hasArg("server") &&
+        server.hasArg("rtc_date") && server.hasArg("rtc_time")) {
+        
         wifi_ssid = server.arg("ssid");
         wifi_password = server.arg("password");
         server_url = server.arg("server");
+        
+        String rtc_date_str = server.arg("rtc_date"); // Formato YYYY-MM-DD
+        String rtc_time_str = server.arg("rtc_time"); // Formato HH:MM
+        
+        // Intentar configurar el RTC
+        if (configurarRTCManual(rtc_date_str, rtc_time_str)) {
+            mostrarMensajeLCD("RTC Configuracion", "EXITOSA!", 2000);
+        } else {
+            // Si falla, aún se guarda la config WiFi pero se notifica el error
+            mostrarMensajeLCD("RTC Configuracion", "FALLIDA! (Verificar)", 3000);
+        }
         
         guardarConfiguracion();
         
@@ -409,7 +412,7 @@ void handleSave() {
         delay(1000);
         shouldRestart = true;
     } else {
-        server.send(400, "text/html", "Faltan parámetros requeridos");
+        server.send(400, "text/html", "Faltan parámetros requeridos (WiFi/Server/RTC)");
     }
 }
 
@@ -420,7 +423,6 @@ void handleScan() {
 void handleNotFound() {
     // Portal cautivo - capturar TODAS las peticiones y redirigir a la página de configuración
     String host = server.hostHeader();
-    
     // Si la petición viene del IP del AP, servir la página directamente
     if (host == WiFi.softAPIP().toString()) {
         server.send(200, "text/html", generarPaginaConfig());
@@ -441,7 +443,6 @@ String escanearRedes() {
     
     StaticJsonDocument<2048> doc;
     JsonArray networks = doc.to<JsonArray>();
-    
     for (int i = 0; i < n; i++) {
         JsonObject network = networks.createNestedObject();
         network["ssid"] = WiFi.SSID(i);
@@ -454,6 +455,7 @@ String escanearRedes() {
     return result;
 }
 
+// --- FUNCIÓN generarPaginaConfig MODIFICADA (INCLUYE RTC) ---
 String generarPaginaConfig() {
     String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>";
     html += "<title>Configuración ESP32 RFID</title>";
@@ -476,7 +478,6 @@ String generarPaginaConfig() {
     
     html += "<div class='max-w-md mx-auto'>";
     html += "<h1 class='text-2xl font-bold text-center mb-6 text-gray-800'>Configuración ESP32 RFID</h1>";
-    
     // Información sobre reset
     html += "<div class='alert'>";
     html += "<h3 class='font-bold text-red-700'>Resetear Configuración WiFi</h3>";
@@ -497,12 +498,25 @@ String generarPaginaConfig() {
     html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Contraseña WiFi</label>";
     html += "<input type='password' name='password' placeholder='Contraseña de la red WiFi' class='input' required>";
     html += "</div>";
+
+    // === CAMPOS RTC AÑADIDOS ===
+    html += "<h2 class='text-xl font-semibold mt-6 mb-3 text-gray-700'>Configuración de Fecha y Hora (RTC)</h2>";
+
+    html += "<div class='mb-4'>";
+    html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Fecha Actual</label>";
+    html += "<input type='date' name='rtc_date' id='rtc_date' class='input' required>";
+    html += "</div>";
+
+    html += "<div class='mb-6'>";
+    html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Hora Actual</label>";
+    html += "<input type='time' name='rtc_time' id='rtc_time' class='input' required>";
+    html += "</div>";
+    // ===========================
     
     html += "<div class='mb-6'>";
     html += "<label class='block text-sm font-medium text-gray-700 mb-1'>URL del Servidor</label>";
     html += "<input type='text' name='server' placeholder='http://192.168.1.100:8000' value='" + server_url + "' class='input' required>";
     html += "</div>";
-    
     html += "<button type='submit' class='btn btn-primary'>Guardar Configuración</button>";
     html += "</form>";
     html += "</div>";
@@ -547,6 +561,46 @@ String generarPaginaConfig() {
     return html;
 }
 
+// === FUNCIÓN RTC MANUAL AÑADIDA ===
+/**
+ * Configura la hora del módulo RTC a partir de strings en formato HTML.
+ * @param dateStr String en formato "YYYY-MM-DD"
+ * @param timeStr String en formato "HH:MM"
+ * @return bool True si la configuración fue exitosa, False si falló.
+ */
+bool configurarRTCManual(String dateStr, String timeStr) {
+    if (!rtcOK) {
+        Serial.println("Error: RTC no inicializado. No se puede configurar la hora.");
+        return false; 
+    }
+
+    // Parsear Fecha (YYYY-MM-DD)
+    int year = dateStr.substring(0, 4).toInt();
+    int month = dateStr.substring(5, 7).toInt();
+    int day = dateStr.substring(8, 10).toInt();
+
+    // Parsear Hora (HH:MM)
+    int hour = timeStr.substring(0, 2).toInt();
+    int minute = timeStr.substring(3, 5).toInt();
+    int second = 0; // Asumimos 0 segundos
+
+    // Validar rangos básicos
+    if (year < 2024 || month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+        Serial.println("Error: Formato de fecha/hora Invalido.");
+        return false;
+    }
+
+    // Crear objeto DateTime y configurar el RTC
+    DateTime newTime(year, month, day, hour, minute, second);
+    rtc.adjust(newTime);
+
+    Serial.print("RTC configurado manualmente a: ");
+    Serial.print(year); Serial.print("-"); Serial.print(month); Serial.print("-"); Serial.print(day); 
+    Serial.print(" "); Serial.print(hour); Serial.print(":"); Serial.println(minute);
+
+    return true;
+}
+
 // === FUNCIONES AUXILIARES (mantenidas igual) ===
 String formatTwoDigits(int number) {
     number = constrain(number, 0, 99);
@@ -567,7 +621,7 @@ void mostrarMensajeLCD(String linea1, String linea2, int duracion) {
     lcd.print(linea1);
     lcd.setCursor(0, 1);
     lcd.print(linea2);
-    lcdMessageDisplayTime = (duracion > 0) ? millis() : 0;
+    lcdMessageDisplayTime = (duracion > 0) ? millis() + duracion : 0;
 }
 
 void mostrarFechaEnLCD() {
@@ -578,7 +632,6 @@ void mostrarFechaEnLCD() {
     lcd.setCursor(0, 0);
     lcd.print(fecha);
     lcd.setCursor(0, 1);
-    
     if (WiFi.status() == WL_CONNECTED) {
         lcd.print(hora);
     } else {
@@ -613,7 +666,6 @@ void inicializarHardware() {
     digitalWrite(LED_ACTIVITY, LOW);
     digitalWrite(LED_STATUS, LOW);
     digitalWrite(LED_ERROR, LOW);
-
     // I2C y LCD
     Wire.begin(21, 22);
     Wire.setClock(100000);
@@ -626,7 +678,6 @@ void inicializarHardware() {
     // SPI
     SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN);
     SPI.setFrequency(4000000);
-
     // SD
     if (SD.begin(SS_SD)) {
         crearArchivosBasicos();
@@ -655,7 +706,7 @@ void crearArchivosBasicos() {
 
 // === PROCESAMIENTO PRINCIPAL ===
 void procesarMensajesLCD() {
-    if (lcdMessageDisplayTime > 0 && millis() - lcdMessageDisplayTime > LCD_MESSAGE_DURATION) {
+    if (lcdMessageDisplayTime > 0 && millis() > lcdMessageDisplayTime) {
         lcdMessageDisplayTime = 0;
         if (numActiveErrors > 0) {
             mostrarMensajeLCD(errorMessages[currentErrorIndex], "Verifica modulos");
@@ -696,11 +747,11 @@ void sincronizarDatosPeriodicamente() {
 }
 
 void procesarLecturaRFID() {
-    if (configMode) return; // No procesar RFID en modo configuración
+    if (configMode) return;
+    // No procesar RFID en modo configuración
     
     if (rfidOK && rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
         String uidStr = leerUID();
-        
         if (uidStr == lastCardUID && (millis() - lastCardRead) < CARD_READ_DELAY) {
             detenerLecturaRFID();
             return;
@@ -725,11 +776,11 @@ void actualizarInterfaz() {
 
 // === CONTROL DE LEDS ===
 void actualizarLEDs() {
-    if (configMode || resetInProgress) return; // Los LEDs se manejan diferente en modo config y reset
+    if (configMode || resetInProgress) return;
+    // Los LEDs se manejan diferente en modo config y reset
     
     // LED estado (verde)
     digitalWrite(LED_STATUS, (sdCardOK && rtcOK && rfidOK) ? HIGH : LOW);
-    
     // LED error (rojo parpadeante)
     if (numActiveErrors > 0) {
         if (millis() - lastErrorBlink > ERROR_BLINK_INTERVAL) {
@@ -773,7 +824,6 @@ void verificarEstadoSistema() {
     DateTime now = rtc.now();
     rtcOK = (now.year() >= 2023);
     if (!rtcOK) errorMessages[numActiveErrors++] = "Error RTC";
-    
     // Verificar RFID
     byte v = rfid.PCD_ReadRegister(rfid.VersionReg);
     rfidOK = (v != 0x00 && v != 0xFF);
@@ -783,7 +833,6 @@ void verificarEstadoSistema() {
 // === CONECTIVIDAD WIFI ===
 void conectarWiFi() {
     if (wifi_ssid.length() == 0) return;
-    
     mostrarMensajeLCD("Conectando WiFi...", wifi_ssid);
     WiFi.mode(WIFI_STA);
     WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
@@ -811,7 +860,6 @@ void conectarWiFi() {
 // === GESTIÓN ARCHIVOS SD ===
 void crearArchivoSiNoExiste(const char* filename, const char* header) {
     if (!sdCardOK) return;
-    
     if (!SD.exists(filename)) {
         archivo = SD.open(filename, FILE_WRITE);
         if (archivo) {
@@ -827,7 +875,6 @@ void crearArchivoSiNoExiste(const char* filename, const char* header) {
 
 bool guardarRegistroEnSD(String filename, String nombre, String uid, String accion, String fecha, String hora, String modo) {
     if (!sdCardOK) return false;
-    
     archivo = SD.open(filename, FILE_APPEND);
     if (archivo) {
         archivo.println(nombre + "," + uid + "," + accion + "," + fecha + "," + hora + "," + modo);
@@ -843,7 +890,6 @@ bool guardarRegistroEnSD(String filename, String nombre, String uid, String acci
 
 void guardarPendienteEnSD(String uid, String accion, String fecha, String hora) {
     if (!sdCardOK) return;
-    
     String nombre = "";
     buscarEstudiante(uid, nombre);
     
@@ -859,7 +905,6 @@ void guardarPendienteEnSD(String uid, String accion, String fecha, String hora) 
 std::vector<CardStatus> loadAllCardStatuses() {
     std::vector<CardStatus> statuses;
     if (!sdCardOK) return statuses;
-    
     if (SD.exists(LAST_ACTIONS_FILE)) {
         File file = SD.open(LAST_ACTIONS_FILE, FILE_READ);
         if (file) {
@@ -943,7 +988,6 @@ void detenerLecturaRFID() {
 void procesarAsistencia(String uidLeido) {
     String nombreEstudiante = "";
     int index = buscarEstudiante(uidLeido, nombreEstudiante);
-
     if (index != -1) {
         // Bloque para tarjetas conocidas (tu código original)
         String lastAction = getLastAction(uidLeido);
@@ -970,7 +1014,6 @@ void procesarAsistencia(String uidLeido) {
         }
 
         guardarRegistroEnSD("/asistencia.txt", nombreEstudiante, uidLeido, currentAction, fecha, hora, modo);
-
     } else {
         // Bloque CORREGIDO para tarjetas desconocidas
         Serial.println("Tarjeta desconocida: " + uidLeido);
@@ -990,7 +1033,6 @@ void procesarAsistencia(String uidLeido) {
 // NUEVA FUNCIÓN: Envía el UID de una tarjeta desconocida al servidor
 bool enviarUidDesconocido(String uid) {
     if (WiFi.status() != WL_CONNECTED) return false;
-
     HTTPClient http;
     String serverPath = server_url + "/api/rfid-scan"; // URL correcta
     http.begin(serverPath);
@@ -1003,9 +1045,7 @@ bool enviarUidDesconocido(String uid) {
     serializeJson(doc, jsonPayload);
 
     int httpCode = http.POST(jsonPayload);
-
     bool success = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED);
-
     if (success) {
         Serial.println("UID desconocido enviado al servidor OK");
     } else {
@@ -1031,7 +1071,6 @@ int buscarEstudiante(String uid, String &nombreEncontrado) {
 // === COMUNICACIÓN SERVIDOR ===
 bool enviarAsistenciaRapido(String uid, String accion, String modo) {
     if (WiFi.status() != WL_CONNECTED) return false;
-    
     HTTPClient http;
     String serverPath = server_url + "/api/asistencia";
     http.begin(serverPath);
@@ -1047,7 +1086,6 @@ bool enviarAsistenciaRapido(String uid, String accion, String modo) {
     
     int httpCode = http.POST(jsonPayload);
     bool success = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED);
-    
     if (success) {
         Serial.println("Enviado al servidor OK");
     } else {
@@ -1076,7 +1114,8 @@ void sincronizarPendientes() {
     JsonArray batchArray = doc.to<JsonArray>();
     int registrosProcesados = 0;
     
-    archivoPendientes.readStringUntil('\n'); // Saltar encabezado
+    archivoPendientes.readStringUntil('\n');
+    // Saltar encabezado
     
     while (archivoPendientes.available()) {
         String linea = archivoPendientes.readStringUntil('\n');
@@ -1092,10 +1131,11 @@ void sincronizarPendientes() {
         
         if (found == 4) {
             String uid = linea.substring(0, pos[0]);
+            // Ignoramos 'nombre' en la carga para el servidor
             String accion = linea.substring(pos[1] + 1, pos[2]);
             String fecha = linea.substring(pos[2] + 1, pos[3]);
             String hora = linea.substring(pos[3] + 1);
-            
+
             JsonObject record = batchArray.add<JsonObject>();
             record["uid"] = uid;
             record["accion"] = accion;
@@ -1121,18 +1161,23 @@ void sincronizarPendientes() {
         
         int httpCode = http.POST(jsonPayload);
         bool exito = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED);
-        
         if (exito) {
             Serial.println("Sincronización exitosa");
         } else {
             // Restaurar registros fallidos
             for (JsonVariant v : batchArray) {
-                String recordLine = v["uid"].as<String>() + ",," + 
-                                   v["accion"].as<String>() + "," + 
-                                   v["fecha"].as<String>() + "," + 
-                                   v["hora"].as<String>();
+                // Reconstruir la línea con el nombre del estudiante (que se había ignorado)
+                String uid = v["uid"].as<String>();
+                String nombre = "";
+                buscarEstudiante(uid, nombre); // Buscar el nombre por UID
+                
+                String recordLine = uid + "," + nombre + "," + 
+                                    v["accion"].as<String>() + "," + 
+                                    v["fecha"].as<String>() + "," + 
+                                    v["hora"].as<String>();
                 tempFile.println(recordLine);
             }
+            Serial.println("Sincronización fallida, registros restaurados a pendientes.");
         }
         http.end();
     }
@@ -1152,7 +1197,6 @@ void sincronizarListaEstudiantes() {
     
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
-        
         DynamicJsonDocument doc(4096);
         DeserializationError error = deserializeJson(doc, payload);
         
@@ -1200,7 +1244,8 @@ void cargarListaEstudiantesDesdeSD() {
     }
     
     numEstudiantesActual = 0;
-    studentsFile.readStringUntil('\n'); // Saltar encabezado
+    studentsFile.readStringUntil('\n');
+    // Saltar encabezado
     
     while (studentsFile.available()) {
         String line = studentsFile.readStringUntil('\n');
