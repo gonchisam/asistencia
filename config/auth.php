@@ -40,6 +40,11 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+        // AÑADE ESTE NUEVO GUARD:
+        'estudiantes_api' => [
+            'driver' => 'sanctum',
+            'provider' => 'estudiantes',
+        ],
     ],
 
     /*
@@ -64,13 +69,14 @@ return [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
         ],
-
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
+        // AÑADE ESTE NUEVO PROVIDER:
+        'estudiantes' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Estudiante::class,
+        ],
     ],
 
+    
     /*
     |--------------------------------------------------------------------------
     | Resetting Passwords

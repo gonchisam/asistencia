@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str; // Importa la clase Str para generar el UUID
+use Laravel\Sanctum\HasApiTokens;
 
 class Estudiante extends Model
 {
-    use HasFactory;
-
+    use HasApiTokens, HasFactory;
+    
     // La tabla es 'students'
     protected $table = 'students';
 
