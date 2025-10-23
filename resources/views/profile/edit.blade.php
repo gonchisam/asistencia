@@ -36,7 +36,8 @@
                             </span>
                         </button>
 
-                        {{-- Pestaña Eliminar Cuenta --}}
+                        {{-- Pestaña Eliminar Cuenta (solo visible para usuarios autorizados) --}}
+                        @can('delete-account')
                         <button
                             id="delete-tab"
                             class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ease-in-out border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -49,6 +50,7 @@
                                 Eliminar Cuenta
                             </span>
                         </button>
+                        @endcan
                     </nav>
                 </div>
 
@@ -68,12 +70,14 @@
                         </div>
                     </div>
 
-                    {{-- Pestaña Eliminar Cuenta --}}
+                    {{-- Pestaña Eliminar Cuenta (solo visible para usuarios autorizados) --}}
+                    @can('delete-account')
                     <div id="delete-content" class="tab-content hidden">
                         <div class="max-w-2xl">
                             @include('profile.partials.delete-user-form')
                         </div>
                     </div>
+                    @endcan
                 </div>
             </div>
         </div>
@@ -131,13 +135,17 @@
 
                 // Mostrar el contenido seleccionado
                 const activeContent = document.getElementById(`${tabName}-content`);
-                activeContent.classList.remove('hidden');
-                activeContent.classList.add('active');
+                if (activeContent) {
+                    activeContent.classList.remove('hidden');
+                    activeContent.classList.add('active');
+                }
 
                 // Activar el botón seleccionado
                 const activeButton = document.getElementById(`${tabName}-tab`);
-                activeButton.classList.remove('border-transparent', 'text-gray-500');
-                activeButton.classList.add('border-blue-500', 'text-blue-600', 'active');
+                if (activeButton) {
+                    activeButton.classList.remove('border-transparent', 'text-gray-500');
+                    activeButton.classList.add('border-blue-500', 'text-blue-600', 'active');
+                }
             }
 
             // Agregar event listeners a los botones

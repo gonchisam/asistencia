@@ -6,6 +6,7 @@
         
         {{-- Encabezado con título y botón flotante --}}
         <div class="flex items-center justify-between mb-8 pb-6 border-b border-gray-200">
+            @can('manage-students')
             <h2 class="text-3xl font-extrabold text-gray-900">
                 <span class="text-blue-600">Gestión de Estudiantes</span>
             </h2>
@@ -18,6 +19,11 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                 </svg>
             </a>
+            @else
+            <h2 class="text-3xl font-extrabold text-gray-900">
+                <span class="text-blue-600">Lista de Estudiantes</span>
+            </h2>
+            @endcan
         </div>
 
         {{-- Mensajes de estado con el estilo del login --}}
@@ -29,6 +35,7 @@
         @endif
 
         {{-- Botón principal de registro --}}
+        @can('manage-students')
         <div class="mb-8">
             <a href="{{ route('students.create') }}" 
                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 ease-in-out shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 inline-flex items-center">
@@ -38,6 +45,7 @@
                 {{ __('Registrar Nuevo Estudiante') }}
             </a>
         </div>
+        @endcan
 
         {{-- Filtros con el estilo del login --}}
         <div class="mb-8 bg-gray-50 rounded-xl p-6 border border-gray-200">
@@ -166,6 +174,7 @@
                             </a>
                         </th>
                         
+                        {{-- Columna Acciones (siempre visible) --}}
                         <th class="py-4 px-6 text-center">Acciones</th>
                     </tr>
                 </thead>
@@ -184,7 +193,10 @@
                                     {{ $student->estado == 1 ? 'Activo' : 'Inactivo' }}
                                 </span>
                             </td>
+                            
+                            {{-- Celda de Acciones (con contenido solo para admins) --}}
                             <td class="py-4 px-6 text-center">
+                                @can('manage-students')
                                 <div class="flex items-center justify-center space-x-3">
                                     <a href="{{ route('students.edit', $student->id) }}" 
                                        class="text-blue-600 hover:text-blue-800 transition duration-150 ease-in-out font-medium">
@@ -229,6 +241,9 @@
                                         </form>
                                     @endif
                                 </div>
+                                @else
+                                <span class="text-gray-400 text-xs italic">N/A</span>
+                                @endcan
                             </td>
                         </tr>
                     @empty
