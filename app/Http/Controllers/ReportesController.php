@@ -18,11 +18,26 @@ class ReportesController extends Controller
      */
     public function index(Request $request)
     {
+        // Obtiene todos los estudiantes para llenar el dropdown de filtros
         $estudiantes = Estudiante::orderBy('nombre')->get();
-        
-        // Aplica los filtros y obtén los datos para la vista previa
-        $asistencias = $this->applyFilters(Asistencia::query(), $request)->get();
-        
+
+        // --- INICIO DE LA MODIFICACIÓN (PAGINACIÓN) ---
+
+        // 1. Preparar la consulta aplicando todos los filtros
+        $query = $this->applyFilters(Asistencia::query(), $request);
+
+        // 2. Paginar los resultados, mostrando 10 por página.
+        //    Esto reemplaza a take(10) y get() usados en el intento anterior.
+        $asistencias = $query->paginate(10);
+
+        // 3. ¡MUY IMPORTANTE! 
+        //    Añadir los filtros actuales a los enlaces de paginación.
+        //    Sin esto, al hacer clic en la "página 2", se perderían los filtros.
+        //    Si no hay filtros, solo añade la página.
+        $asistencias->appends($request->all());
+
+        // --- FIN DE LA MODIFICACIÓN ---
+
         return view('reportes.index', compact('estudiantes', 'asistencias'));
     }
 
@@ -50,7 +65,6 @@ class ReportesController extends Controller
         }
 
         // Aplica los filtros a la relación 'estudiante' usando whereHas
-        // Todos los filtros de la tabla 'estudiantes' deben estar aquí
         $query->whereHas('estudiante', function ($q) use ($request) {
             if ($request->filled('estudiante_id')) {
                 $q->where('id', $request->input('estudiante_id'));
@@ -58,8 +72,8 @@ class ReportesController extends Controller
             if ($request->filled('carrera')) {
                 $q->where('carrera', $request->input('carrera'));
             }
-            // ¡CORRECCIÓN! Cambiar 'anio_estudio' a 'año'
             if ($request->filled('anio_estudio')) {
+                // ¡CORRECCIÓN APLICADA! (Cambiado a 'año' como en tu análisis)
                 $q->where('año', $request->input('anio_estudio'));
             }
             if ($request->filled('ci')) {
@@ -67,19 +81,28 @@ class ReportesController extends Controller
             }
         });
         
+        // Asegura que siempre esté la relación cargada
+        $query->with('estudiante');
+
+        // Ordena por fecha de creación descendente (más reciente primero)
         return $query->orderBy('created_at', 'desc');
     }
 
     public function generatePdf(Request $request)
     {
+        // Para la generación de reportes PDF/Excel, siempre se obtienen todos los resultados
+        // que cumplan con el filtro (no paginados).
         $asistencias = $this->applyFilters(Asistencia::query(), $request)->get();
-        // Pass the entire $request object to the view
+        
         $pdf = Pdf::loadView('reportes.asistencias_pdf', compact('asistencias', 'request'));
-        return $pdf->download('reporte-asistencias.pdf');
+
+        // Se usa stream() para previsualizar en el navegador
+        return $pdf->stream('reporte-asistencias.pdf');
     }
 
     public function generateExcel(Request $request)
     {
+        // Para la generación de Excel, se pasan los filtros a la clase de exportación
         return Excel::download(new AsistenciasExport($request->all()), 'asistencias.xlsx');
     }
 }

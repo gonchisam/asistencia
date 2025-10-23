@@ -173,8 +173,18 @@
                             @endforeach
                         </tbody>
                     </table>
-                </div>
+                </div> {{-- Fin de overflow-x-auto --}}
+            </div> {{-- Fin de mb-8 --}}
+
+            {{-- =================================================== --}}
+            {{-- AÑADE ESTE BLOQUE PARA MOSTRAR LA PAGINACIÓN --}}
+            {{-- =================================================== --}}
+            <div class="mt-8 mb-8">
+                {{-- Esto renderizará los enlaces [1] [2] [3]... --}}
+                {{ $asistencias->links() }}
             </div>
+            {{-- =================================================== --}}
+
 
             {{-- Botones de generación de reportes --}}
             <div class="flex space-x-4">
