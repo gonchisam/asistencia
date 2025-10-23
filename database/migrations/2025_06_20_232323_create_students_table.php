@@ -27,6 +27,9 @@ return new class extends Migration
             
             // Campo para el estado del estudiante (0 inactivo, 1 activo - para eliminación lógica)
             $table->boolean('estado')->default(true)->comment('Estado del registro: 0 inactivo, 1 activo (eliminación lógica)');
+            $table->string('device_id') // Tipo string para guardar el ID
+                  ->nullable()         // Permite que esté vacío al principio
+                  ->unique();           // Asegura que cada device_id sea único en la tabla
             // Nuevo campo para la última acción registrada (ENTRADA/SALIDA). Puede ser nulo al inicio.
             $table->string('last_action')->nullable()->comment('Última acción de asistencia registrada (ENTRADA/SALIDA)');
 
@@ -47,6 +50,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('students');
+        Schema::table('students', function (Blueprint $table) { // Nombre correcto de tu tabla
+            // Eliminamos la columna si revertimos
+            $table->dropUnique(['device_id']); // Primero quita el índice único
+            $table->dropColumn('device_id');
+        });
     }
 };

@@ -1,12 +1,11 @@
 <?php
 
-use Illuminate\Http\Request;
+use Illuminateate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AsistenciaController;
 use App\Http\Controllers\StudentController;
-// --- AÑADIR LOS NUEVOS CONTROLADORES MÓVILES ---
-use App\Http\Controllers\Api\AuthMovilController;
-use App\Http\Controllers\Api\AsistenciaMovilController;
+// --- ¡Ajusta esta línea! ---
+use App\Http\Controllers\Api\MovilController; // Asegúrate que la ruta sea correcta
 
 /*
 |--------------------------------------------------------------------------
@@ -14,27 +13,33 @@ use App\Http\Controllers\Api\AsistenciaMovilController;
 |--------------------------------------------------------------------------
 */
 
-// --- RUTAS PÚBLICAS (EXISTENTES PARA ARDUINO) ---
+// --- GRUPO DE RUTAS PARA LA APP MÓVIL ---
+Route::prefix('movil')->group(function () {
+    
+    // Ruta pública para el login de la app
+    Route::post('/login', [MovilController::class, 'login']);
+
+    // Rutas protegidas que requieren autenticación (token Sanctum)
+    Route::middleware('auth:sanctum')->group(function () {
+        
+        Route::get('/perfil', [MovilController::class, 'getPerfil']);
+        Route::post('/logout', [MovilController::class, 'logout']);
+        
+        // Apunta al método correcto que creaste (registrarAsistencia)
+        Route::post('/asistencia', [MovilController::class, 'registrarAsistencia']); 
+
+        // ¡La nueva ruta de historial!
+        Route::get('/historial', [MovilController::class, 'getHistorial']);
+    });
+});
+// --- FIN DEL GRUPO ---
+
+
+// --- Tus rutas existentes ---
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+    return $request->user();
+});
 Route::post('/asistencia', [AsistenciaController::class, 'store']);
 Route::post('/asistencia/batch', [AsistenciaController::class, 'storeBatch']);
+Route::post('/students', [StudentController::class, 'store']);
 Route::get('/students-list', [StudentController::class, 'getStudentsList']);
-
-
-// --- NUEVAS RUTAS API MÓVIL (ESTUDIANTES) ---
-
-// Ruta PÚBLICA para que el estudiante inicie sesión
-Route::post('/movil/login', [AuthMovilController::class, 'login']);
-
-// Rutas PROTEGIDAS: Requieren un token de estudiante válido
-// Usamos el guard 'estudiantes_api' que definimos en config/auth.php
-Route::middleware('auth:estudiantes_api')->group(function () {
-    
-    // Obtener el perfil del estudiante logueado
-    Route::get('/movil/perfil', [AuthMovilController::class, 'perfil']);
-
-    // Cerrar la sesión del estudiante
-    Route::post('/movil/logout', [AuthMovilController::class, 'logout']);
-
-    // Registrar la asistencia por GPS
-    Route::post('/movil/asistencia', [AsistenciaMovilController::class, 'registrar']);
-});

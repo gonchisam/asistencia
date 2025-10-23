@@ -7,13 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str; // Importa la clase Str para generar el UUID
 use Laravel\Sanctum\HasApiTokens;
-
-class Estudiante extends Model
+use Illuminate\Foundation\Auth\User as Authenticatable;
+class Estudiante extends Authenticatable // Cambiado de Model a Authenticatable
 {
+    // --- Asegúrate de tener estos traits ---
     use HasApiTokens, HasFactory;
-    
-    // La tabla es 'students'
-    protected $table = 'students';
+
+    protected $table = 'students'; // O 'estudiantes' si se llama así
 
     protected $fillable = [
         'uid',
@@ -24,6 +24,7 @@ class Estudiante extends Model
         'fecha_nacimiento',
         'carrera',
         'año',
+        'device_id',
         'sexo',
         'celular',
         'correo',
