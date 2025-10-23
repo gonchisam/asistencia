@@ -37,6 +37,11 @@ Route::middleware('auth')->group(function () {
     // Ruta para Configuración
     Route::get('/configuracion', [ConfiguracionController::class, 'index'])->name('configuracion.index');
 
+    // --- NUEVA RUTA PARA DESVINCULAR DISPOSITIVO ---
+    // -----------------------------------------------------------------
+    Route::put('students/{student}/unlink-device', [StudentController::class, 'unlinkDevice'])->name('students.unlinkDevice');
+    
+    
     // Rutas para Reportes
     Route::get('/reportes', [ReportesController::class, 'index'])->name('reportes.index');
     Route::get('/reportes/pdf', [ReportesController::class, 'generatePdf'])->name('reportes.pdf');

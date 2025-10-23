@@ -29,7 +29,23 @@ class AuthMovilController extends Controller
             ]);
         }
         
-        // 3. Crear token de API para el estudiante
+        // -----------------------------------------------------------------
+        // NUEVA VALIDACIÓN: Verificar el estado del estudiante
+        // -----------------------------------------------------------------
+        // Usamos !$estudiante->estado porque el modelo lo castea a booleano
+        if (!$estudiante->estado) { 
+            // Si el estado es 0 (inactivo), devolvemos un error 403 (Prohibido)
+            return response()->json([
+                'success' => false,
+                'message' => 'Tu cuenta se encuentra desactivada. Contacta a administración.'
+            ], 403);
+        }
+        // -----------------------------------------------------------------
+        // Fin de la nueva validación
+        // -----------------------------------------------------------------
+
+
+        // 3. Crear token de API para el estudiante (Solo si está activo)
         $token = $estudiante->createToken('token-app-movil')->plainTextToken;
 
         return response()->json([

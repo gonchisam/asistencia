@@ -220,18 +220,22 @@ class StudentController extends Controller
     private function generateStudentsListForArduino()
     {
         try {
-            $students = Estudiante::where('estado', 1)->get();
-            $content = "UID,NOMBRE\n";
+            // Ya no filtramos por estado, los obtenemos TODOS
+            $students = Estudiante::all(); 
+            
+            // El nuevo encabezado
+            $content = "UID,NOMBRE,ESTADO\n";
 
             foreach ($students as $student) {
                 $sanitizedNombre = str_replace(',', '', $student->nombre);
-                $content .= $student->uid . "," . $sanitizedNombre . "\n";
+                // Añadimos el estado (1 para activo, 0 para inactivo)
+                $content .= $student->uid . "," . $sanitizedNombre . "," . ($student->estado ? '1' : '0') . "\n";
             }
 
             $filePath = public_path('lista_estudiantes.txt');
             File::put($filePath, $content);
 
-            Log::info('Archivo lista_estudiantes.txt generado y actualizado correctamente.');
+            Log::info('Archivo lista_estudiantes.txt (con estado) generado y actualizado.');
         } catch (\Exception $e) {
             Log::error('Error al generar lista_estudiantes.txt: ' . $e->getMessage());
         }
@@ -243,8 +247,14 @@ class StudentController extends Controller
     public function getStudentsList()
     {
         try {
-            $students = Estudiante::where('estado', 1)->get(['uid', 'nombre']);
+            // Ya no filtramos por 'estado', 1
+            // Obtenemos todos los estudiantes con los campos uid, nombre y estado
+            $students = Estudiante::get(['uid', 'nombre', 'estado']);
+            
+            // El modelo 'Estudiante' castea 'estado' a booleano, 
+            // lo cual ArduinoJson interpretará como true/false, y podremos convertir a 1/0.
             return response()->json($students);
+
         } catch (\Exception $e) {
             Log::error("Error al obtener la lista de estudiantes para Arduino: " . $e->getMessage());
             return response()->json(['error' => 'Error interno del servidor al obtener la lista de estudiantes'], 500);
@@ -280,15 +290,19 @@ class StudentController extends Controller
 
         $exists = Estudiante::where('uid', $uid)->exists();
 
-        // Almacena el UID en el caché SIN IMPORTAR si existe o no.
-        Cache::put('temp_uid_for_form', $uid, 30);
-        
         if ($exists) {
+            // Si el UID ya existe, no hacemos NADA en el caché.
+            // Simplemente devolvemos el estado 'registered'.
             return response()->json([
                 'status' => 'registered',
                 'message' => 'UID already registered.'
             ]);
         } else {
+            // ¡SOLUCIÓN!
+            // Si el UID es nuevo, SÓLO ENTONCES lo guardamos en el caché
+            // para que el formulario lo pueda tomar.
+            Cache::put('temp_uid_for_form', $uid, 30);
+
             return response()->json([
                 'status' => 'new',
                 'message' => 'New UID received and ready to register.'
@@ -303,5 +317,19 @@ class StudentController extends Controller
     {
         $uid = Cache::get('temp_uid_for_form');
         return response()->json(['uid' => $uid]);
+    }
+
+    public function unlinkDevice(Estudiante $student)
+    {
+        // Esta es la lógica principal: pone el device_id en null
+        $student->update([
+            'device_id' => null
+        ]);
+  
+        // No es necesario llamar a generateStudentsListForArduino()
+        // porque el device_id no se usa en el Arduino.
+  
+        return redirect()->route('students.index')
+                         ->with('status', 'Dispositivo del estudiante desvinculado exitosamente.');
     }
 }

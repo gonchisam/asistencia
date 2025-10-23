@@ -25,7 +25,7 @@ class MovilController extends Controller
         $request->validate([
             'correo' => 'required|email',
             'ci' => 'required|string',
-            'device_id' => 'required|string|max:255', // Asegura que el device_id venga y no sea muy largo
+            'device_id' => 'required|string|max:255', 
         ]);
 
         $correo = $request->correo;
@@ -42,6 +42,21 @@ class MovilController extends Controller
             ]);
         }
         
+        // -----------------------------------------------------------------
+        // NUEVA VALIDACIÓN (PASO 1): Verificar el estado del estudiante
+        // -----------------------------------------------------------------
+        // Lo hacemos antes de la lógica del device_id
+        if (!$estudiante->estado) { 
+            Log::warning("Fallo de login móvil (Cuenta Inactiva): correo {$correo}");
+            return response()->json([
+                'success' => false,
+                'message' => 'Tu cuenta se encuentra desactivada. Contacta a administración.'
+            ], 403); // Forbidden
+        }
+        // -----------------------------------------------------------------
+        // Fin de la nueva validación
+        // -----------------------------------------------------------------
+
         // Verificar si tiene UID (necesario para la asistencia)
         if (empty($estudiante->uid)) {
             Log::error("Fallo de login móvil (Sin UID): Estudiante {$estudiante->id}");
@@ -105,7 +120,7 @@ class MovilController extends Controller
         ]);
     }
 
-    // ... (El resto de tus métodos: getPerfil, logout, registrarAsistencia, getHistorial, calcularDistanciaHaversine... quedan igual)
+    // ... (El resto de tus métodos: getPerfil, logout... quedan igual)
     public function getPerfil(Request $request)
     {
         return response()->json([
@@ -128,10 +143,21 @@ class MovilController extends Controller
 
     public function registrarAsistencia(Request $request)
     {
-        // CONSIDERACIÓN: Podrías añadir aquí también la validación del device_id
-        // $deviceIdRecibido = $request->input('device_id'); // Necesitarías que Flutter lo envíe
-        // $estudiante = $request->user();
-        // if ($estudiante->device_id !== $deviceIdRecibido) { ... return error ... }
+        // -----------------------------------------------------------------
+        // NUEVA VALIDACIÓN (PASO 2): Verificar estado antes de registrar
+        // -----------------------------------------------------------------
+        $estudiante = $request->user(); // Obtener el estudiante autenticado
+        
+        if (!$estudiante->estado) {
+            Log::warning("Asistencia MOVIL denegada (Cuenta Inactiva): UID {$estudiante->uid}");
+            return response()->json([
+                'success' => false,
+                'message' => 'No puedes registrar asistencia, tu cuenta está desactivada.'
+            ], 403); // Forbidden
+        }
+        // -----------------------------------------------------------------
+        // Fin de la nueva validación
+        // -----------------------------------------------------------------
         
         $data = $request->validate([
             'accion' => 'required|string|in:ENTRADA,SALIDA',
@@ -139,7 +165,7 @@ class MovilController extends Controller
             'longitud' => 'required|numeric',
         ]);
 
-        $estudiante = $request->user(); 
+        // $estudiante = $request->user(); // Esta línea ya la movimos arriba
 
         $targetLat = (float) config('app.target_latitud', -17.336540);
         $targetLng = (float) config('app.target_longitud', -66.197478);
@@ -192,6 +218,23 @@ class MovilController extends Controller
         try {
             $estudiante = $request->user();
             if (!$estudiante) return response()->json(['success' => false, 'message' => 'Usuario no autenticado.'], 401);
+
+            // -----------------------------------------------------------------
+            // VALIDACIÓN (OPCIONAL): Verificar estado también al ver historial
+            // -----------------------------------------------------------------
+            // Si bien no es crítico, es buena práctica.
+            // Si se desactiva la cuenta, ¿debería poder ver su historial?
+            // Si la respuesta es NO, descomenta el siguiente bloque:
+            /*
+            if (!$estudiante->estado) {
+                Log::warning("Consulta de Historial denegada (Cuenta Inactiva): UID {$estudiante->uid}");
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tu cuenta está desactivada.'
+                ], 403); // Forbidden
+            }
+            */
+            // -----------------------------------------------------------------
 
             $periodo = $request->query('periodo', 'todos');
             $fechaInicio = $request->query('fecha_inicio'); 

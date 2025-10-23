@@ -55,6 +55,7 @@ Preferences preferences;
 struct Estudiante {
     String uid;
     String nombre;
+    int estado; // <-- AÑADIR ESTA LÍNEA
 };
 
 struct CardStatus {
@@ -1056,7 +1057,20 @@ void detenerLecturaRFID() {
 void procesarAsistencia(String uidLeido) {
     String nombreEstudiante = "";
     int index = buscarEstudiante(uidLeido, nombreEstudiante);
+    
     if (index != -1) {
+        // ¡¡NUEVA VALIDACIÓN DE ESTADO!!
+        // Verificamos el estado del estudiante cargado en la memoria local
+        if (estudiantes[index].estado == 0) {
+            Serial.print("Asistencia DENEGADA (Inactivo): ");
+            Serial.println(nombreEstudiante);
+            // Mostramos el mensaje de error y salimos
+            mostrarMensajeLCD("ACCESO DENEGADO", "CUENTA INACTIVA", LCD_MESSAGE_DURATION * 2); 
+            // (Usamos * 2 para que el mensaje de error dure más)
+            return; // Detenemos el proceso aquí
+        }
+        // Si el estado es 1, continúa normalmente...
+
         // Bloque para tarjetas conocidas (tu código original)
         String lastAction = getLastAction(uidLeido);
         String currentAction = (lastAction == "ENTRADA") ? "SALIDA" : "ENTRADA";
@@ -1065,7 +1079,8 @@ void procesarAsistencia(String uidLeido) {
 
         Serial.print("Tarjeta: ");
         Serial.println(nombreEstudiante);
-        mostrarMensajeLCD(currentAction + ":", nombreEstudiante, LCD_MESSAGE_DURATION); // Mensaje actualizado
+        mostrarMensajeLCD(currentAction + ":", nombreEstudiante, LCD_MESSAGE_DURATION);
+        // Mensaje actualizado
 
         String fecha, hora;
         obtenerTimestamp(fecha, hora);
@@ -1078,10 +1093,14 @@ void procesarAsistencia(String uidLeido) {
                 guardarPendienteEnSD(uidLeido, currentAction, fecha, hora);
             }
         } else {
+            // Solo guardamos pendiente si está activo (lo cual ya validamos)
             guardarPendienteEnSD(uidLeido, currentAction, fecha, hora);
         }
 
+        // Guardamos en el log de /asistencia.txt (incluso si está inactivo, aunque ya lo bloqueamos)
+        // (Decidimos bloquearlo arriba, así que este guardado solo ocurrirá para activos)
         guardarRegistroEnSD("/asistencia.txt", nombreEstudiante, uidLeido, currentAction, fecha, hora, modo);
+    
     } else {
         // Bloque CORREGIDO para tarjetas desconocidas
         Serial.println("Tarjeta desconocida: " + uidLeido);
@@ -1091,10 +1110,6 @@ void procesarAsistencia(String uidLeido) {
         if (WiFi.status() == WL_CONNECTED) {
             enviarUidDesconocido(uidLeido);
         }
-
-        String fecha, hora;
-        obtenerTimestamp(fecha, hora);
-        guardarRegistroEnSD("/asistencia.txt", "Desconocido", uidLeido, "N/A", fecha, hora, "UNKNOWN");
     }
 }
 
@@ -1257,10 +1272,12 @@ void sincronizarListaEstudiantes() {
     
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
-        DynamicJsonDocument doc(4096);
+        DynamicJsonDocument doc(4096); // Quizás necesites aumentar esto si tienes muchos estudiantes
         DeserializationError error = deserializeJson(doc, payload);
         
         if (error) {
+            Serial.print("deserializeJson() falló: ");
+            Serial.println(error.c_str());
             http.end();
             return;
         }
@@ -1271,24 +1288,36 @@ void sincronizarListaEstudiantes() {
             http.end();
             return;
         }
-        studentsFile.println("UID,NOMBRE");
+        // NUEVO ENCABEZADO
+        studentsFile.println("UID,NOMBRE,ESTADO"); 
         
         JsonArray studentsArray = doc.as<JsonArray>();
         for (JsonObject student : studentsArray) {
             if (numEstudiantesActual < MAX_STUDENTS) {
-                estudiantes[numEstudiantesActual].uid = student["uid"].as<String>();
-                estudiantes[numEstudiantesActual].nombre = student["nombre"].as<String>();
-                studentsFile.println(estudiantes[numEstudiantesActual].uid + "," + 
-                                   estudiantes[numEstudiantesActual].nombre);
+                // Leer los 3 campos del JSON
+                String uid = student["uid"].as<String>();
+                String nombre = student["nombre"].as<String>();
+                // Leer 'estado' (booleano de JSON) y convertirlo a 0 o 1
+                int estado = student["estado"] ? 1 : 0; 
+
+                // Guardar en la memoria local
+                estudiantes[numEstudiantesActual].uid = uid;
+                estudiantes[numEstudiantesActual].nombre = nombre;
+                estudiantes[numEstudiantesActual].estado = estado; // <-- GUARDAR ESTADO
+
+                // Escribir los 3 campos en el archivo SD
+                studentsFile.println(uid + "," + nombre + "," + String(estado));
+
                 numEstudiantesActual++;
             } else break;
         }
         studentsFile.close();
         
-        Serial.print("Lista sincronizada. Total: ");
+        Serial.print("Lista sincronizada (con estado). Total: ");
         Serial.println(numEstudiantesActual);
         mostrarMensajeLCD("Lista Actualizada", "Estudiantes OK", 2000);
     } else {
+        // Si falla el GET, cargamos desde SD
         cargarListaEstudiantesDesdeSD();
     }
     http.end();
@@ -1312,16 +1341,22 @@ void cargarListaEstudiantesDesdeSD() {
         if (line.length() == 0) continue;
         
         if (numEstudiantesActual < MAX_STUDENTS) {
-            int commaIndex = line.indexOf(',');
-            if (commaIndex != -1) {
-                estudiantes[numEstudiantesActual].uid = line.substring(0, commaIndex);
-                estudiantes[numEstudiantesActual].nombre = line.substring(commaIndex + 1);
+            // Parsear la línea con 3 campos
+            int firstComma = line.indexOf(',');
+            int secondComma = line.indexOf(',', firstComma + 1);
+
+            if (firstComma != -1 && secondComma != -1) {
+                estudiantes[numEstudiantesActual].uid = line.substring(0, firstComma);
+                estudiantes[numEstudiantesActual].nombre = line.substring(firstComma + 1, secondComma);
+                // Convertir el estado (String "0" o "1") a int
+                estudiantes[numEstudiantesActual].estado = line.substring(secondComma + 1).toInt(); 
+                
                 numEstudiantesActual++;
             }
         } else break;
     }
     studentsFile.close();
     
-    Serial.print("Cargados desde SD: ");
+    Serial.print("Cargados desde SD (con estado): ");
     Serial.println(numEstudiantesActual);
 }

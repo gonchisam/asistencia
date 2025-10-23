@@ -190,7 +190,9 @@
                                        class="text-blue-600 hover:text-blue-800 transition duration-150 ease-in-out font-medium">
                                         Editar
                                     </a>
+                                    
                                     @if ($student->estado == 1)
+                                        {{-- Botón Dar de Baja --}}
                                         <form action="{{ route('students.destroy', $student->id) }}" method="POST" 
                                               onsubmit="return confirm('¿Estás seguro de que quieres dar de baja a este estudiante? Esto cambiará su estado a inactivo.');">
                                             @csrf
@@ -200,7 +202,22 @@
                                                 Dar de Baja
                                             </button>
                                         </form>
+                                        
+                                        {{-- Botón Eliminar ID Celular (solo si tiene device_id) --}}
+                                        @if ($student->device_id)
+                                            <form action="{{ route('students.unlinkDevice', $student->id) }}" method="POST" 
+                                                  onsubmit="return confirm('¿Estás seguro de que deseas desvincular el dispositivo de este estudiante? Perderá el acceso en ese celular.');">
+                                                @csrf
+                                                @method('PUT')
+                                                <button type="submit" 
+                                                        class="text-yellow-600 hover:text-yellow-800 transition duration-150 ease-in-out font-medium">
+                                                    Eliminar ID Celular
+                                                </button>
+                                            </form>
+                                        @endif
+                                        
                                     @else
+                                        {{-- Botón Reactivar para estudiantes inactivos --}}
                                         <form action="{{ route('students.restore', $student->id) }}" method="POST" 
                                               onsubmit="return confirm('¿Estás seguro de que quieres reactivar a este estudiante?');">
                                             @csrf
