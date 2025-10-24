@@ -102,4 +102,13 @@ class Estudiante extends Authenticatable // Cambiado de Model a Authenticatable
     {
         return trim($this->nombre . ' ' . $this->primer_apellido . ' ' . $this->segundo_apellido);
     }
+
+    /**
+     * Obtiene los cursos en los que está inscrito el estudiante.
+     */
+    public function cursos()
+    {
+        // Relación Muchos-a-Muchos con la tabla pivote 'curso_estudiante'
+        return $this->belongsToMany(Curso::class, 'curso_estudiante');
+    }
 }

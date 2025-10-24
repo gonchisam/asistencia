@@ -74,7 +74,7 @@
                         <ul class="flex space-x-8 justify-center">
                             <li>
                                 <a href="{{ route('dashboard') }}" 
-                                   class="nav-link inline-flex items-center py-2 px-6 text-lg font-semibold text-gray-700 hover:text-blue-600 focus:outline-none transition duration-300 ease-in-out {{ request()->routeIs('dashboard') ? 'active text-blue-600' : '' }}">
+                                    class="nav-link inline-flex items-center py-2 px-6 text-lg font-semibold text-gray-700 hover:text-blue-600 focus:outline-none transition duration-300 ease-in-out {{ request()->routeIs('dashboard') ? 'active text-blue-600' : '' }}">
                                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                     </svg>
@@ -83,7 +83,7 @@
                             </li>
                             <li>
                                 <a href="{{ route('students.index') }}" 
-                                   class="nav-link inline-flex items-center py-2 px-6 text-lg font-semibold text-gray-700 hover:text-blue-600 focus:outline-none transition duration-300 ease-in-out {{ request()->routeIs('students.index') || request()->routeIs('students.create') || request()->routeIs('students.edit') ? 'active text-blue-600' : '' }}">
+                                    class="nav-link inline-flex items-center py-2 px-6 text-lg font-semibold text-gray-700 hover:text-blue-600 focus:outline-none transition duration-300 ease-in-out {{ request()->routeIs('students.index') || request()->routeIs('students.create') || request()->routeIs('students.edit') ? 'active text-blue-600' : '' }}">
                                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                                     </svg>
@@ -92,7 +92,7 @@
                             </li>
                             <li>
                                 <a href="{{ route('reportes.index') }}" 
-                                   class="nav-link inline-flex items-center py-2 px-6 text-lg font-semibold text-gray-700 hover:text-blue-600 focus:outline-none transition duration-300 ease-in-out {{ request()->routeIs('reportes.index') ? 'active text-blue-600' : '' }}">
+                                    class="nav-link inline-flex items-center py-2 px-6 text-lg font-semibold text-gray-700 hover:text-blue-600 focus:outline-none transition duration-300 ease-in-out {{ request()->routeIs('reportes.index') ? 'active text-blue-600' : '' }}">
                                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
@@ -101,26 +101,54 @@
                             </li>
                             <li>
                                 <a href="{{ route('estadisticas.index') }}" 
-                                   class="nav-link inline-flex items-center py-2 px-6 text-lg font-semibold text-gray-700 hover:text-blue-600 focus:outline-none transition duration-300 ease-in-out {{ request()->routeIs('estadisticas.index') ? 'active text-blue-600' : '' }}">
+                                    class="nav-link inline-flex items-center py-2 px-6 text-lg font-semibold text-gray-700 hover:text-blue-600 focus:outline-none transition duration-300 ease-in-out {{ request()->routeIs('estadisticas.index') ? 'active text-blue-600' : '' }}">
                                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                     </svg>
                                     Estadísticas
                                 </a>
                             </li>
-                        </ul>
+                            
+                            <li class="relative">
+                                @php
+                                    $isGestionActive = request()->routeIs('admin.cursos.*') || 
+                                                       request()->routeIs('admin.materias.*') || 
+                                                       request()->routeIs('admin.periodos.*') || 
+                                                       request()->routeIs('admin.aulas.*');
+                                @endphp
+                                <button id="gestion-menu-button"
+                                        class="nav-link inline-flex items-center py-2 px-6 text-lg font-semibold text-gray-700 hover:text-blue-600 focus:outline-none transition duration-300 ease-in-out {{ $isGestionActive ? 'active text-blue-600' : '' }}">
+                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h2M9 5.01V5m0 0a2 2 0 012-2h2a2 2 0 012 2v0m-6 0v3m6-3v3m0 0v4m-6-4v4m0 0v4m6-4v4m0 0v4m-6-4v4"></path>
+                                    </svg>
+                                    Gestión Académica
+                                    <svg id="gestion-arrow" class="w-5 h-5 ml-1 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                
+                                <div id="gestion-dropdown" 
+                                     class="dropdown-menu absolute left-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
+                                    <a href="{{ route('admin.cursos.index') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition duration-150 ease-in-out {{ request()->routeIs('admin.cursos.*') ? 'bg-blue-50 text-blue-600' : '' }}">
+                                        Cursos (Grupos)
+                                    </a>
+                                    <a href="{{ route('admin.materias.index') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition duration-150 ease-in-out {{ request()->routeIs('admin.materias.*') ? 'bg-blue-50 text-blue-600' : '' }}">
+                                        Materias
+                                    </a>
+                                    <a href="{{ route('admin.periodos.index') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition duration-150 ease-in-out {{ request()->routeIs('admin.periodos.*') ? 'bg-blue-50 text-blue-600' : '' }}">
+                                        Periodos
+                                    </a>
+                                    <a href="{{ route('admin.aulas.index') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition duration-150 ease-in-out {{ request()->routeIs('admin.aulas.*') ? 'bg-blue-50 text-blue-600' : '' }}">
+                                        Aulas
+                                    </a>
+                                </div>
+                            </li>
+                            </ul>
                     </nav>
 
                     {{-- Información de usuario y fecha/hora --}}
                     <div class="flex items-center space-x-6">
-                        {{-- Fecha y hora --}}
-                        <div class="bg-blue-50 rounded-xl p-3 shadow-sm border border-blue-100">
-                            <div class="text-center">
-                                <div id="current-date" class="text-sm font-semibold text-blue-800"></div>
-                                <div id="current-time" class="text-lg font-bold text-blue-600"></div>
-                            </div>
-                        </div>
-
+                        
                         {{-- Menú de usuario --}}
                         @auth
                             <div class="relative">
@@ -195,6 +223,21 @@
 
             {{-- Contenido principal --}}
             <main class="flex-grow container mx-auto px-4 py-8">
+                {{-- Aquí inyectamos las vistas de Blade (como dashboard.blade.php) --}}
+                @if (isset($header))
+                    <header class="bg-white shadow mb-6 rounded-lg">
+                        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                            {{ $header }}
+                        </div>
+                    </header>
+                @endif
+                
+                {{-- Contenido principal de las vistas de Breeze (si las usas) --}}
+                @if (isset($slot))
+                    {{ $slot }}
+                @endif
+
+                {{-- Contenido de tus vistas @yield (para estudiantes, reportes, etc.) --}}
                 @yield('content')
             </main>
 
@@ -214,29 +257,11 @@
 
         {{-- Scripts --}}
         <script>
-            // Script para la fecha y hora actual
-            function updateDateTime() {
-                const now = new Date();
-                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            // SCRIPT DE FECHA Y HORA ELIMINADO
 
-                const currentDateElement = document.getElementById('current-date');
-                const currentTimeElement = document.getElementById('current-time');
-
-                if (currentDateElement) {
-                    currentDateElement.textContent = now.toLocaleDateString('es-ES', dateOptions);
-                }
-                if (currentTimeElement) {
-                    currentTimeElement.textContent = now.toLocaleTimeString('es-ES', timeOptions);
-                }
-            }
-
-            // Actualiza cada segundo
-            setInterval(updateDateTime, 1000);
-            updateDateTime();
-
-            // Script para el menú desplegable del usuario
+            // Script para los menús desplegables
             document.addEventListener('DOMContentLoaded', function() {
+                // --- Menú de Usuario ---
                 const userMenuButton = document.getElementById('user-menu-button');
                 const userDropdown = document.getElementById('user-dropdown');
                 const dropdownArrow = document.getElementById('dropdown-arrow');
@@ -248,20 +273,49 @@
                         userDropdown.classList.toggle('show');
                         dropdownArrow.classList.toggle('rotate-180');
                     });
-
-                    // Cerrar menú al hacer clic fuera
-                    document.addEventListener('click', function(e) {
-                        if (!userMenuButton.contains(e.target) && !userDropdown.contains(e.target)) {
-                            userDropdown.classList.remove('show');
-                            dropdownArrow.classList.remove('rotate-180');
-                        }
-                    });
-
-                    // Prevenir que el menú se cierre al hacer clic dentro de él
+                    
                     userDropdown.addEventListener('click', function(e) {
-                        e.stopPropagation();
+                        e.stopPropagation(); // Prevenir que se cierre al hacer clic dentro
                     });
                 }
+
+                // ===============================================
+                // INICIO: SCRIPT PARA NUEVO MENÚ DE GESTIÓN
+                // ===============================================
+                const gestionMenuButton = document.getElementById('gestion-menu-button');
+                const gestionDropdown = document.getElementById('gestion-dropdown');
+                const gestionArrow = document.getElementById('gestion-arrow');
+
+                if (gestionMenuButton && gestionDropdown) {
+                    // Alternar menú al hacer clic
+                    gestionMenuButton.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        gestionDropdown.classList.toggle('show');
+                        if (gestionArrow) gestionArrow.classList.toggle('rotate-180');
+                    });
+                    
+                    gestionDropdown.addEventListener('click', function(e) {
+                        e.stopPropagation(); // Prevenir que se cierre al hacer clic dentro
+                    });
+                }
+                // ===============================================
+                // FIN: SCRIPT PARA NUEVO MENÚ DE GESTIÓN
+                // ===============================================
+
+                // Cerrar menús al hacer clic fuera
+                document.addEventListener('click', function(e) {
+                    // Cierra menú de usuario
+                    if (userMenuButton && !userMenuButton.contains(e.target) && !userDropdown.contains(e.target)) {
+                        userDropdown.classList.remove('show');
+                        dropdownArrow.classList.remove('rotate-180');
+                    }
+                    
+                    // Cierra menú de gestión
+                    if (gestionMenuButton && !gestionMenuButton.contains(e.target) && !gestionDropdown.contains(e.target)) {
+                        gestionDropdown.classList.remove('show');
+                        if (gestionArrow) gestionArrow.classList.remove('rotate-180');
+                    }
+                });
             });
         </script>
 
