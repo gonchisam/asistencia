@@ -61,5 +61,5 @@ Route::middleware('auth')->group(function () {
     // ... otras rutas
     Route::get('/estadisticas', [EstadisticasController::class, 'index'])->name('estadisticas.index');
     // AÑADIR ESTA LÍNEA
-    Route::get('/estadisticas/exportar', [EstadisticasController::class, 'exportarExcel'])->name('estadisticas.exportarExcel');
+    
 // ...

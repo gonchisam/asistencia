@@ -8,7 +8,7 @@
             <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                     <td style="width: 20%; vertical-align: top;">
-                        <img src="{{ public_path('img/logo.jpg') }}" alt="Logo" style="width: 80px; height: auto;">
+                        <img src="{{ asset('img/logo.jpg') }}" alt="Logo" style="width: 80px; height: auto;">
                     </td>
                     <td style="width: 80%; text-align: center; vertical-align: middle;">
                         <h4 style="margin: 0; font-size: 16px;">INSTITUTO TECNICO NACIONAL DE COMERCIO</h4>
@@ -24,7 +24,7 @@
 
         <div class="flex flex-wrap justify-between items-center mb-6 no-print">
             <h1 class="text-3xl font-bold text-gray-800">
-            <span class="text-blue-600">Reportes de Asistencia</span>
+                <span class="text-blue-600">Reportes de Asistencia</span>
             </h1>
             <div class="flex items-center gap-2">
                 {{-- Botones de acción --}}
@@ -34,11 +34,34 @@
                 <button id="exportPdfBtn" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
                     Exportar Gráficos PDF
                 </button>
-                <a href="{{ route('estadisticas.exportarExcel') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-                    Exportar Datos Excel
-                </a>
             </div>
         </div>
+
+        {{-- INICIO: Formulario de Filtro por Fechas --}}
+        <form method="GET" action="{{ route('estadisticas.index') }}" class="mb-6 no-print">
+            <div class="bg-white p-4 rounded-lg shadow-md flex flex-wrap items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <label for="fecha_inicio" class="text-sm font-medium text-gray-700">Desde:</label>
+                    <input type="date" id="fecha_inicio" name="fecha_inicio" 
+                           value="{{ $fechaInicio ?? '' }}" 
+                           class="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="fecha_fin" class="text-sm font-medium text-gray-700">Hasta:</label>
+                    <input type="date" id="fecha_fin" name="fecha_fin" 
+                           value="{{ $fechaFin ?? '' }}" 
+                           class="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">
+                    Filtrar Fechas
+                </button>
+                <a href="{{ route('estadisticas.index') }}" class="text-sm text-gray-600 hover:text-gray-900">
+                    Limpiar Filtro
+                </a>
+            </div>
+        </form>
+        {{-- FIN: Formulario de Filtro por Fechas --}}
 
         {{-- Pestañas principales --}}
         <div class="mb-6 no-print">
@@ -149,42 +172,82 @@
 {{-- Estilos para controlar la impresión a PDF --}}
 <style>
     @media print {
-        /* Oculta todo por defecto */
+        /* 1. Permitir al usuario elegir la orientación. Se elimina @page { size: landscape; } */
+
+        /* 2. Ocultar todos los elementos que no deben imprimirse */
+        .no-print,
+        /* Ocultar elementos de la interfaz de usuario */
+        .tab-pane:not(.active),
+        /* Ocultar pestañas inactivas */
+        .subtab-pane:not(.active)
+        /* Ocultar subpestañas inactivas */
+        {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* 3. Asegurar que el contenido activo y el encabezado sean visibles y estáticos */
         body * {
             visibility: hidden;
         }
-        /* Hace visible solo el encabezado, los gráficos y sus contenedores */
+
         .printable-header, .printable-header *,
-        #subtab-content, #subtab-content * {
-            visibility: visible;
+        #tab-content .tab-pane.active,
+        #tab-content .tab-pane.active * {
+             visibility: visible !important;
         }
+        
         .printable-header {
-            display: block !important; /* Muestra el encabezado al imprimir */
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            padding: 20px;
-            z-index: 9999;
-        }
-        #subtab-content {
-            margin-top: 150px; /* Ajusta el margen para que no se solape con el encabezado */
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-        }
-        .chart-card {
-            page-break-inside: avoid;
-        }
-        /* Oculta los elementos no deseados */
-        .no-print, #risk-students-table {
-            display: none !important;
-        }
-        /* Muestra todas las subpestañas al imprimir */
-        .subtab-pane {
             display: block !important;
-            margin-bottom: 30px;
+            position: static !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin-bottom: 20px;
+        }
+        
+        /* 4. Centrar el contenido de la pestaña activa */
+        #tab-content {
+            width: 100%;
+            margin: 0 auto; /* Centrado horizontal */
+            display: block !important;
+            position: static !important;
+        }
+
+        /* 5. Estilos específicos para contenido de gráficos (para impresión) */
+        #graficos-content.active {
+            display: block !important;
+            /* Intentar centrar el gráfico horizontalmente */
+            text-align: center;
+        }
+        
+        #graficos-content.active .chart-card {
+            page-break-inside: avoid;
+            box-shadow: none;
+            /* Flexbox para centrar el gráfico dentro del contenedor */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 90%; /* Ajustar el ancho para dejar espacio */
+            margin: 0 auto; /* Centrado dentro de su contenedor padre */
+        }
+        
+        /* 6. Estilos específicos para la tabla de estudiantes (vertical) */
+        #estudiantes-content.active {
+            display: block !important;
+            /* Para centrar la tabla */
+            width: 90%;
+            margin: 0 auto;
+        }
+        
+        #estudiantes-content.active table {
+            width: 100%;
+        }
+
+        /* Forzar que el canvas del gráfico se imprima correctamente */
+        canvas {
+            max-width: 100% !important;
+            height: auto !important;
         }
     }
 
