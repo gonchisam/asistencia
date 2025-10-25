@@ -12,7 +12,11 @@ class AulaController extends Controller
      */
     public function index()
     {
-        $aulas = Aula::paginate(10);
+        // Obtenemos todas las aulas, ordenadas por ubicación y luego por nombre.
+        $aulas = Aula::orderBy('ubicacion') // Ordena primero por ubicación
+                      ->orderBy('nombre')     // Luego por nombre dentro de cada ubicación
+                      ->paginate(15);      // O el número que prefieras
+
         return view('admin.aulas.index', compact('aulas'));
     }
 

@@ -19,7 +19,13 @@ class MateriaController extends Controller
 
     public function index()
     {
-        $materias = Materia::paginate(10);
+        // Obtenemos todas las materias, ordenadas primero por carrera y luego por año.
+        $materias = Materia::orderBy('carrera')
+                           ->orderBy('ano_cursado') // Puedes ajustar este orden si prefieres (ej. por nombre)
+                           ->orderBy('nombre')
+                           ->paginate(15); // O el número que prefieras por página
+
+        // Simplemente pasamos la colección paginada a la vista
         return view('admin.materias.index', compact('materias'));
     }
 

@@ -13,20 +13,44 @@ class Asistencia extends Model
 
     protected $fillable = [
         'uid',
-        'nombre', // Este campo es redundante si tienes una relación directa a estudiantes, pero puede ser útil para el historial
+        'nombre',
         'accion',
         'modo',
         'fecha_hora',
+        
+        // --- NUEVOS CAMPOS ---
+        'curso_id',
+        'periodo_id',
+        'estado_llegada', 
+        // --- FIN NUEVOS CAMPOS ---
     ];
 
     protected $casts = [
         'fecha_hora' => 'datetime'
     ];
 
-    // Relación con el estudiante (asumiendo que 'uid' en asistencias se relaciona con 'uid' en students)
+    /**
+     * Relación con el estudiante
+     */
     public function estudiante()
     {
         return $this->belongsTo(Estudiante::class, 'uid', 'uid');
+    }
+
+    /**
+     * Relación con el curso (¡NUEVO!)
+     */
+    public function curso()
+    {
+        return $this->belongsTo(Curso::class);
+    }
+
+    /**
+     * Relación con el periodo (¡NUEVO!)
+     */
+    public function periodo()
+    {
+        return $this->belongsTo(Periodo::class);
     }
 
     /**
@@ -39,17 +63,8 @@ class Asistencia extends Model
     }
 
     /**
-     * Obtiene el estado de llegada.
-     * Si la acción es 'ENTRADA', siempre retorna 'a_tiempo' (sin restricciones de horario).
-     * Para otras acciones, retorna 'N/A'.
-     * @return string
+     * ¡ELIMINADO!
+     * Ya no necesitamos getEstadoLlegadaAttribute
+     * porque ahora se guarda directamente en la BD.
      */
-    public function getEstadoLlegadaAttribute(): string
-    {
-        if ($this->accion === 'ENTRADA') {
-            return 'a_tiempo'; // Todas las entradas se consideran 'a_tiempo'
-        } else {
-            return 'N/A'; // No aplicable para SALIDA u otras acciones
-        }
-    }
 }

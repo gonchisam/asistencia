@@ -5,17 +5,27 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Asistencia;
-use App\Models\Estudiante; 
+use App\Models\Estudiante;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Hash; 
-use Illuminate\Validation\ValidationException; 
-use Illuminate\Support\Carbon; 
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Carbon;
+use App\Services\HorarioService; // <-- ¡NUEVO!
+use Illuminate\Support\Facades\Auth; // <-- ¡NUEVO!
 
 class MovilController extends Controller
 {
+    // --- ¡NUEVO! Inyección del servicio ---
+    protected $horarioService;
+
+    public function __construct(HorarioService $horarioService)
+    {
+        $this->horarioService = $horarioService;
+    }
+
     /**
      * Maneja el inicio de sesión desde la app móvil.
-     * --- ¡MODIFICADO CON LÓGICA ANTIFRAUDE! ---
+     * (Este método se queda como lo tenías)
      */
     public function login(Request $request)
     {
@@ -42,10 +52,6 @@ class MovilController extends Controller
             ]);
         }
         
-        // -----------------------------------------------------------------
-        // NUEVA VALIDACIÓN (PASO 1): Verificar el estado del estudiante
-        // -----------------------------------------------------------------
-        // Lo hacemos antes de la lógica del device_id
         if (!$estudiante->estado) { 
             Log::warning("Fallo de login móvil (Cuenta Inactiva): correo {$correo}");
             return response()->json([
@@ -53,11 +59,7 @@ class MovilController extends Controller
                 'message' => 'Tu cuenta se encuentra desactivada. Contacta a administración.'
             ], 403); // Forbidden
         }
-        // -----------------------------------------------------------------
-        // Fin de la nueva validación
-        // -----------------------------------------------------------------
 
-        // Verificar si tiene UID (necesario para la asistencia)
         if (empty($estudiante->uid)) {
             Log::error("Fallo de login móvil (Sin UID): Estudiante {$estudiante->id}");
              return response()->json([
@@ -67,28 +69,19 @@ class MovilController extends Controller
         }
 
         // --- INICIO: LÓGICA ANTIFRAUDE ---
-
         $deviceIdGuardado = $estudiante->device_id;
 
-        // 3. VERIFICAR EL DEVICE_ID
         if ($deviceIdGuardado) {
-            // El estudiante YA tiene un dispositivo vinculado
             if ($deviceIdGuardado !== $deviceIdRecibido) {
-                // El ID del dispositivo actual NO coincide con el guardado
                 Log::warning("Fallo de login móvil (Dispositivo no coincide): UID {$estudiante->uid}, Device Recibido {$deviceIdRecibido}, Guardado {$deviceIdGuardado}");
                 return response()->json([
                     'success' => false,
                     'message' => 'Tu cuenta está vinculada a otro dispositivo. Si perdiste o cambiaste tu teléfono, contacta a administración para desvincularlo.'
                 ], 403); // Forbidden
             }
-            // Si coincide, todo bien, continuamos.
             Log::info("Login móvil: UID {$estudiante->uid} - Dispositivo verificado.");
 
         } else {
-            // El estudiante NO tiene un dispositivo vinculado (es NULL en la BD)
-            // Es el primer login desde un móvil O se desvinculó su dispositivo anterior.
-
-            // 3.1 (Opcional pero recomendado) Verificar si este device_id ya está en uso por OTRO estudiante
             $otroEstudiante = Estudiante::where('device_id', $deviceIdRecibido)->first();
             if ($otroEstudiante) {
                  Log::warning("Fallo de login móvil (Device ID ya en uso): UID {$estudiante->uid} intentó usar Device ID {$deviceIdRecibido} perteneciente a UID {$otroEstudiante->uid}");
@@ -98,29 +91,143 @@ class MovilController extends Controller
                 ], 409); // Conflict
             }
 
-            // 3.2 Si el device_id está libre, lo VINCULAMOS al estudiante actual
             $estudiante->device_id = $deviceIdRecibido;
-            $estudiante->save(); // Guardamos el nuevo device_id en la base de datos
+            $estudiante->save();
             Log::info("Login móvil: UID {$estudiante->uid} - Nuevo dispositivo vinculado: {$deviceIdRecibido}");
         }
-
         // --- FIN: LÓGICA ANTIFRAUDE ---
 
-
-        // 4. GENERAR TOKEN Y RESPONDER (Si pasó todas las validaciones)
-        $estudiante->tokens()->delete(); // Elimina tokens antiguos
+        // 4. GENERAR TOKEN Y RESPONDER
+        $estudiante->tokens()->delete();
         $token = $estudiante->createToken('auth_token_movil')->plainTextToken;
-
         Log::info("Login móvil exitoso y token generado: {$estudiante->uid}");
 
         return response()->json([
             'success' => true,
             'token' => $token,
-            'estudiante' => $estudiante // Devuelve los datos del estudiante
+            'estudiante' => $estudiante
         ]);
     }
 
-    // ... (El resto de tus métodos: getPerfil, logout... quedan igual)
+
+    // --- ¡NUEVO MÉTODO! ---
+    /**
+     * Endpoint para que la APP consulte si el botón de marcar debe estar activo.
+     */
+    public function getEstadoAsistencia()
+    {
+        $estudiante = Auth::user(); // Es un modelo Estudiante (ya que usamos auth:sanctum)
+        
+        // Llamamos al servicio (aulaId = null porque es la app)
+        $estado = $this->horarioService->verificarEstadoAsistencia($estudiante->id, null);
+        
+        // Devolvemos el JSON { "puede_marcar": bool, "periodo_id": int, "mensaje": "..." }
+        // La app leerá 'puede_marcar' para activar/desactivar el botón
+        return response()->json($estado);
+    }
+
+
+    // --- ¡MÉTODO MODIFICADO! ---
+    /**
+     * Registra la asistencia desde la APP MÓVIL.
+     * Ya no recibe 'accion', solo valida geolocalización.
+     */
+    public function registrarAsistencia(Request $request, HorarioService $horarioService)
+    {
+        $estudiante = $request->user(); // Obtener el estudiante autenticado
+        
+        // 1. VALIDACIÓN DE ESTADO DE CUENTA (Como ya lo tenías)
+        if (!$estudiante->estado) {
+            Log::warning("Asistencia MOVIL denegada (Cuenta Inactiva): UID {$estudiante->uid}");
+            return response()->json([
+                'success' => false,
+                'message' => 'No puedes registrar asistencia, tu cuenta está desactivada.'
+            ], 403); 
+        }
+
+        // 2. VALIDACIÓN DE DATOS DE ENTRADA
+        // ¡Se elimina 'SALIDA' de la validación!
+        $data = $request->validate([
+            'accion' => 'required|string|in:ENTRADA', // <-- ¡REQUERIMIENTO CUMPLIDO!
+            'latitud' => 'required|numeric',
+            'longitud' => 'required|numeric',
+        ]);
+
+        // -----------------------------------------------------------------
+        // INICIO: NUEVA LÓGICA DE HORARIOS
+        // -----------------------------------------------------------------
+
+        // 3. VERIFICAR HORARIO
+        // Se llama al servicio. Se pasa 'null' como $aulaId porque desde
+        // la app móvil no sabemos en qué aula física está.
+        $verificacion = $horarioService->verificarEstadoAsistencia($estudiante->id, null);
+
+        if (!$verificacion['puede_marcar']) {
+            Log::warning("Asistencia MOVIL denegada (Fuera de Horario): UID {$estudiante->uid}, Mensaje: {$verificacion['mensaje']}");
+            
+            // Personalizamos el mensaje de error para la app
+            $mensajeApp = 'Error de horario';
+            if ($verificacion['mensaje'] == 'FUERA_DE_TOLERANCIA') {
+                $mensajeApp = 'El tiempo de tolerancia ha finalizado.';
+            } else if ($verificacion['mensaje'] == 'SIN_CLASE') {
+                 $mensajeApp = 'No tienes ninguna clase programada ahora.';
+            }
+            
+            return response()->json([
+                'success' => false,
+                'message' => $mensajeApp
+            ], 403); // 403 Forbidden
+        }
+        
+        // -----------------------------------------------------------------
+        // FIN: NUEVA LÓGICA DE HORARIOS
+        // -----------------------------------------------------------------
+
+        // 4. VERIFICAR GEOLOCALIZACIÓN (Tu lógica actual)
+        $targetLat = (float) config('app.target_latitud', -17.39563447179674);
+        $targetLng = (float) config('app.target_longitud', -66.15809478773795);
+        $targetRadio = (float) config('app.target_radio_metros', 20);
+
+        $distancia = $this->calcularDistanciaHaversine(
+            $data['latitud'], $data['longitud'],
+            $targetLat, $targetLng
+        );
+
+        if ($distancia > $targetRadio) {
+            Log::warning("Asistencia MOVIL fuera de rango: UID {$estudiante->uid}, Distancia: {$distancia}m");
+            return response()->json([
+                'success' => false,
+                'message' => 'Estás fuera del rango permitido ('.round($distancia, 0).'m). Acércate a la ubicación.'
+            ], 403); 
+        }
+
+        // 5. GUARDAR ASISTENCIA
+        // ¡Guardamos con los nuevos campos!
+        $asistencia = Asistencia::create([
+            'uid' => $estudiante->uid,
+            'nombre' => $estudiante->nombreCompleto,
+            'accion' => $data['accion'],
+            'modo' => 'MOVIL', 
+            'fecha_hora' => now(),
+            
+            // --- NUEVOS CAMPOS ---
+            'curso_id' => $verificacion['curso_id'],
+            'periodo_id' => $verificacion['periodo_id'],
+            'estado_llegada' => 'a_tiempo' // Si llegó aquí, está a tiempo
+        ]);
+
+        Log::info("Asistencia MOVIL registrada: UID {$estudiante->uid}, CursoID: {$asistencia->curso_id}, Distancia: {$distancia}m");
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Asistencia registrada exitosamente.',
+            'data' => $asistencia
+        ], 201);
+    }
+
+    
+    // --- MÉTODOS SIN CAMBIOS ---
+    
     public function getPerfil(Request $request)
     {
         return response()->json([
@@ -141,66 +248,6 @@ class MovilController extends Controller
         }
     }
 
-    public function registrarAsistencia(Request $request)
-    {
-        // -----------------------------------------------------------------
-        // NUEVA VALIDACIÓN (PASO 2): Verificar estado antes de registrar
-        // -----------------------------------------------------------------
-        $estudiante = $request->user(); // Obtener el estudiante autenticado
-        
-        if (!$estudiante->estado) {
-            Log::warning("Asistencia MOVIL denegada (Cuenta Inactiva): UID {$estudiante->uid}");
-            return response()->json([
-                'success' => false,
-                'message' => 'No puedes registrar asistencia, tu cuenta está desactivada.'
-            ], 403); // Forbidden
-        }
-        // -----------------------------------------------------------------
-        // Fin de la nueva validación
-        // -----------------------------------------------------------------
-        
-        $data = $request->validate([
-            'accion' => 'required|string|in:ENTRADA,SALIDA',
-            'latitud' => 'required|numeric',
-            'longitud' => 'required|numeric',
-        ]);
-
-        // $estudiante = $request->user(); // Esta línea ya la movimos arriba
-
-        $targetLat = (float) config('app.target_latitud', -17.336540);
-        $targetLng = (float) config('app.target_longitud', -66.197478);
-        $targetRadio = (float) config('app.target_radio_metros', 20);
-
-        $distancia = $this->calcularDistanciaHaversine(
-            $data['latitud'], $data['longitud'],
-            $targetLat, $targetLng
-        );
-
-        if ($distancia > $targetRadio) {
-            Log::warning("Asistencia MOVIL fuera de rango: UID {$estudiante->uid}, Distancia: {$distancia}m");
-            return response()->json([
-                'success' => false,
-                'message' => 'Estás fuera del rango permitido ('.round($distancia, 0).'m). Acércate a la ubicación.'
-            ], 403); 
-        }
-
-        $asistencia = Asistencia::create([
-            'uid' => $estudiante->uid,
-            'nombre' => $estudiante->nombreCompleto,
-            'accion' => $data['accion'],
-            'modo' => 'MOVIL', 
-            'fecha_hora' => now()
-        ]);
-
-        Log::info("Asistencia MOVIL registrada: UID {$estudiante->uid}, Distancia: {$distancia}m");
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Asistencia registrada exitosamente.',
-            'data' => $asistencia
-        ], 201);
-    }
-
     private function calcularDistanciaHaversine($lat1, $lng1, $lat2, $lng2)
     {
         $earthRadius = 6371000; 
@@ -215,26 +262,10 @@ class MovilController extends Controller
     
     public function getHistorial(Request $request)
     {
+        // ... (Tu lógica de historial está bien y no necesita cambios)
         try {
             $estudiante = $request->user();
             if (!$estudiante) return response()->json(['success' => false, 'message' => 'Usuario no autenticado.'], 401);
-
-            // -----------------------------------------------------------------
-            // VALIDACIÓN (OPCIONAL): Verificar estado también al ver historial
-            // -----------------------------------------------------------------
-            // Si bien no es crítico, es buena práctica.
-            // Si se desactiva la cuenta, ¿debería poder ver su historial?
-            // Si la respuesta es NO, descomenta el siguiente bloque:
-            /*
-            if (!$estudiante->estado) {
-                Log::warning("Consulta de Historial denegada (Cuenta Inactiva): UID {$estudiante->uid}");
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Tu cuenta está desactivada.'
-                ], 403); // Forbidden
-            }
-            */
-            // -----------------------------------------------------------------
 
             $periodo = $request->query('periodo', 'todos');
             $fechaInicio = $request->query('fecha_inicio'); 
@@ -258,8 +289,13 @@ class MovilController extends Controller
                     case 'mes': $query->whereBetween('fecha_hora', [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()]); break;
                 }
             }
-
-            $historial = $query->orderBy('fecha_hora', 'desc')->get();
+            
+            // --- ¡MEJORA! ---
+            // Incluimos el nombre del periodo en la consulta del historial
+            $historial = $query->with('periodo:id,nombre') // Carga la relación 'periodo'
+                                ->orderBy('fecha_hora', 'desc')
+                                ->get();
+            
             Log::info("Historial solicitado para UID: {$estudiante->uid} (Periodo: $periodo, Rango: $fechaInicio-$fechaFin), encontrados: {$historial->count()}");
 
             return response()->json(['success' => true, 'historial' => $historial]);

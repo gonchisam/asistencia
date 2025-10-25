@@ -10,7 +10,11 @@ class PeriodoController extends Controller
 {
     public function index()
     {
-        $periodos = Periodo::all();
+        // Obtenemos todos los periodos, ordenados por nombre.
+        // Usamos all() y sortBy() porque no esperamos muchos periodos y no necesitamos paginación.
+        // Si tuvieras muchos, podrías usar ->orderBy('nombre')->get();
+        $periodos = Periodo::all()->sortBy('nombre'); 
+        
         return view('admin.periodos.index', compact('periodos'));
     }
 

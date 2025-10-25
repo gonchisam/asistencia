@@ -25,7 +25,18 @@ class CursoController extends Controller
      */
     public function index()
     {
-        $cursos = Curso::with('materia')->paginate(10);
+        // Usamos 'join' para poder ordenar por campos de la tabla 'materias'
+        // Seleccionamos todos los campos de 'cursos' y los necesarios de 'materias'
+        // Es importante usar 'cursos.*' para evitar conflictos de 'id'
+        $cursos = Curso::join('materias', 'cursos.materia_id', '=', 'materias.id')
+                       ->select('cursos.*', 'materias.nombre as materia_nombre', 'materias.carrera', 'materias.ano_cursado')
+                       ->orderBy('materias.carrera')        // Orden 1: Carrera
+                       ->orderBy('materias.ano_cursado')    // Orden 2: Año
+                       ->orderBy('cursos.paralelo')         // Orden 3: Paralelo
+                       ->orderBy('materias.nombre')         // Orden 4: Nombre de materia (opcional)
+                       ->paginate(15);                   // O el número que prefieras
+
+        // La vista recibirá la colección paginada ya ordenada
         return view('admin.cursos.index', compact('cursos'));
     }
 

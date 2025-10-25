@@ -13,6 +13,12 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // $schedule->command('inspire')->hourly();
+
+        // --- ¡LÍNEA AÑADIDA! ---
+        // Ejecuta nuestro comando para procesar faltas cada cinco minutos.
+        // En producción, esto requiere configurar un Cron Job en tu servidor
+        // para que ejecute "php artisan schedule:run" cada minuto.
+        $schedule->command('asistencia:procesar-faltas')->everyFiveMinutes();
     }
 
     /**
