@@ -55,6 +55,21 @@ Route::middleware('auth')->group(function () {
     // Estadísticas
     Route::get('/estadisticas', [EstadisticasController::class, 'index'])->name('estadisticas.index');
 
+    // ==========================================================
+    // ==== 1. AÑADIR ESTA NUEVA RUTA (GET) ====
+    Route::get('/profile/importar-docentes', [ProfileController::class, 'showImportForm'])
+         ->name('profile.showImportForm');
+
+    // ==== 2. ESTA ES LA RUTA QUE YA TENÍAS (POST) ====
+    Route::post('/profile/import-docentes', [ProfileController::class, 'importDocentes'])
+         ->name('profile.importDocentes');
+    // ==========================================================
+
+    // === INICIO: RUTA DE IMPORTACIÓN ===
+    Route::post('/profile/import-docentes', [ProfileController::class, 'importDocentes'])
+         ->name('profile.importDocentes');
+    // === FIN: RUTA DE IMPORTACIÓN ===
+
     // --- NUEVAS RUTAS ADMINISTRATIVAS ---
     Route::prefix('admin')->name('admin.')->group(function () {
         

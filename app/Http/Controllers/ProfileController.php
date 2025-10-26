@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
+use App\Models\User;
+use Maatwebsite\Excel\Facades\Excel; // <--- 1. AÑADIR ESTE USE
+use App\Imports\DocentesImport;      // <--- 2. AÑADIR ESTE USE
+use Maatwebsite\Excel\Validators\ValidationException;
+
+
 
 class ProfileController extends Controller
 {
@@ -19,8 +25,14 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
+        // 2. OBTÉN LA LISTA DE DOCENTES
+        //    Basado en tu migración, el rol es 'docente'
+        $docentes = User::where('role', 'docente')->orderBy('name')->get();
+
+        // 3. PASA LA NUEVA VARIABLE A LA VISTA
         return view('profile.edit', [
             'user' => $request->user(),
+            'docentes' => $docentes, // <--- Añade esto
         ]);
     }
 
@@ -80,5 +92,49 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return Redirect::to('/');
+    }
+
+    public function showImportForm(): View
+    {
+        // Esta es la nueva vista que crearemos en el Paso 3
+        return view('profile.importar-docentes');
+    }
+
+    /**
+     * Importa docentes desde un archivo Excel/CSV.
+     */
+    public function importDocentes(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv,txt'
+        ]);
+
+        try {
+            Excel::import(new DocentesImport, $request->file('file'));
+
+            // ==== 2. MODIFICAR REDIRECT (en éxito) ====
+            // Redirigir de vuelta a la página de importación
+            return Redirect::route('profile.showImportForm')
+                ->with('status', 'docentes-imported')
+                ->with('success-message', 'Docentes importados correctamente.');
+
+        } catch (ValidationException $e) {
+            $failuress = $e->failures();
+            $errorMessages = [];
+            foreach ($failuress as $failure) {
+                $errorMessages[] = 'Fila ' . $failure->row() . ': ' . implode(', ', $failure->errors());
+            }
+
+            // ==== 3. MODIFICAR REDIRECT (en error de validación) ====
+            return Redirect::route('profile.showImportForm')
+                ->with('status', 'docentes-import-failed')
+                ->withErrors(['import' => $errorMessages]);
+        } catch (\Exception $e) {
+            
+            // ==== 4. MODIFICAR REDIRECT (en error general) ====
+            return Redirect::route('profile.showImportForm')
+                ->with('status', 'docentes-import-failed')
+                ->withErrors(['import' => 'Ocurrió un error inesperado: ' . $e->getMessage()]);
+        }
     }
 }

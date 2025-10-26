@@ -9,7 +9,6 @@
             <span class="text-blue-600">Generación de Reportes</span>
         </h2>
 
-        <p class="text-gray-700 mb-8 text-center text-lg">Utiliza los filtros a continuación para generar reportes de asistencia en formato PDF o Excel.</p>
 
         {{-- Formulario de filtros con el estilo del login --}}
         <form action="{{ route('reportes.index') }}" method="GET" class="mb-8">

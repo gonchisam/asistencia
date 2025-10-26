@@ -35,6 +35,28 @@
                                 Contraseña
                             </span>
                         </button>
+                        
+                        {{-- =============================================== --}}
+                        {{-- ========= INICIO: NUEVA PESTAÑA DOCENTES ======== --}}
+                        {{-- =============================================== --}}
+                        {{-- Solo visible para admin/superadmin, basado en tu migración --}}
+                        @if(auth()->user()->role == 'administrador' || auth()->user()->role == 'superadmin')
+                        <button
+                            id="docentes-tab"
+                            class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ease-in-out border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                            data-tab="docentes"
+                        >
+                            <span class="flex items-center">
+                                <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.824-2.167-1.943-2.39a4.125 4.125 0 0 0-1.12 0c-1.119.223-1.943 1.277-1.943 2.39v.003m0 0a4.125 4.125 0 0 0-7.533-2.493 9.337 9.337 0 0 0 4.121.952 9.38 9.38 0 0 0 2.625-.372M15 19.128c-.418 0-.79-.037-1.15-.107a4.125 4.125 0 0 1-4.699-3.412 4.125 4.125 0 0 1 4.699-3.412 4.125 4.125 0 0 1 0 6.824c.36.07.732.107 1.15.107m0 0a4.125 4.125 0 0 0 4.699 3.412 4.125 4.125 0 0 0 0-6.824 4.125 4.125 0 0 0-4.699 3.412M12 6.003c.12.003.236.01.349.023a3.8 3.8 0 0 1 3.5 3.5c.012.112.02.228.02.347m0 0c-.12-.003-.236-.01-.349-.023a3.8 3.8 0 0 0-3.5-3.5C8.36 6.013 8.244 6.006 8.124 6.003m3.876 0A3.875 3.875 0 0 0 8.124 9.876m3.876 0A3.875 3.875 0 0 1 15.876 9.876m0 0A3.875 3.875 0 0 1 12 13.753m0 0A3.875 3.875 0 0 1 8.124 9.876m3.876 0A3.875 3.875 0 0 0 15.876 9.876m0 0A3.875 3.875 0 0 0 12 6.003" />
+                                </svg>
+                                Lista de Docentes
+                            </span>
+                        </button>
+                        @endif
+                        {{-- =============================================== --}}
+                        {{-- ============ FIN: NUEVA PESTAÑA DOCENTES ======== --}}
+                        {{-- =============================================== --}}
 
                         {{-- Pestaña Eliminar Cuenta (solo visible para usuarios autorizados) --}}
                         @can('delete-account')
@@ -69,6 +91,21 @@
                             @include('profile.partials.update-password-form')
                         </div>
                     </div>
+
+                    {{-- =============================================== --}}
+                    {{-- ========= INICIO: NUEVO CONTENIDO PESTAÑA ======= --}}
+                    {{-- =============================================== --}}
+                    @if(auth()->user()->role == 'administrador' || auth()->user()->role == 'superadmin')
+                    <div id="docentes-content" class="tab-content hidden">
+                        {{-- CAMBIO IMPORTANTE: Cambiar max-w-2xl por w-full para que ocupe todo el ancho disponible --}}
+                        <div class="w-full">
+                            @include('profile.partials.list-docentes')
+                        </div>
+                    </div>
+                    @endif
+                    {{-- =============================================== --}}
+                    {{-- ============ FIN: NUEVO CONTENIDO PESTAÑA ======= --}}
+                    {{-- =============================================== --}}
 
                     {{-- Pestaña Eliminar Cuenta (solo visible para usuarios autorizados) --}}
                     @can('delete-account')
@@ -127,10 +164,12 @@
                     content.classList.add('hidden');
                 });
 
-                // Remover clase active de todos los botones
+                // Remover clase active de todos los botones y restaurar el estilo inactivo
                 tabButtons.forEach(button => {
+                    // Quitamos las clases de ACTIVO
                     button.classList.remove('active', 'border-blue-500', 'text-blue-600');
-                    button.classList.add('border-transparent', 'text-gray-500');
+                    // Agregamos las clases de INACTIVO
+                    button.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
                 });
 
                 // Mostrar el contenido seleccionado
@@ -143,7 +182,9 @@
                 // Activar el botón seleccionado
                 const activeButton = document.getElementById(`${tabName}-tab`);
                 if (activeButton) {
-                    activeButton.classList.remove('border-transparent', 'text-gray-500');
+                    // Quitamos las clases de INACTIVO
+                    activeButton.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                    // Agregamos las clases de ACTIVO
                     activeButton.classList.add('border-blue-500', 'text-blue-600', 'active');
                 }
             }
