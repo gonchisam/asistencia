@@ -1,21 +1,45 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            Editar Periodo: {{ $periodo->nombre }}
-        </h2>
-    </x-slot>
+@extends('layouts.app') 
 
-    <div class="py-12">
-        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
-                    <form action="{{ route('admin.periodos.update', $periodo) }}" method="POST">
-                        @csrf
-                        @method('PUT')
-                        @include('admin.periodos._form')
-                    </form>
-                </div>
-            </div>
+@section('content')
+
+    {{-- Contenedor principal con el mismo estilo moderno (shadow-2xl, rounded-xl) --}}
+    <div class="bg-white rounded-xl shadow-2xl p-8 transform transition-all duration-300 hover:shadow-3xl w-full max-w-3xl mx-auto">
+        
+        {{-- Encabezado con flecha y título unificado --}}
+        <div class="flex items-center space-x-4 mb-8 pb-6 border-b border-gray-200">
+            
+            {{-- Flecha "Atrás" (Back Arrow) con estilo unificado --}}
+            <a href="{{ route('admin.periodos.index') }}"
+               class="text-gray-500 hover:text-blue-600 transition duration-150 ease-in-out p-2 rounded-full hover:bg-gray-100"
+               title="Volver a la Gestión de Periodos">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+            </a>
+
+            {{-- Título Principal con color azul destacado --}}
+            <h2 class="text-3xl font-extrabold text-gray-900">
+                <span class="text-blue-600">Editar Periodo:</span> {{ $periodo->nombre }}
+            </h2>
         </div>
+
+        {{-- Mensajes de estado (Opcional, si los manejas aquí) --}}
+        @if ($errors->any())
+            <div class="mb-6 p-4 bg-red-100 border border-red-300 rounded-lg text-red-700 text-sm">
+                <strong class="font-semibold">¡Error de Validación!</strong>
+                <span class="block sm:inline">Por favor, revisa los campos e intenta de nuevo.</span>
+            </div>
+        @endif
+
+        {{-- Formulario de Edición --}}
+        <form action="{{ route('admin.periodos.update', $periodo) }}" method="POST">
+            @csrf
+            @method('PUT')
+            
+            {{-- Incluye el formulario de campos --}}
+            @include('admin.periodos._form')
+            
+        </form>
+
     </div>
-</x-app-layout>
+@endsection

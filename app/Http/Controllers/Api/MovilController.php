@@ -184,9 +184,9 @@ class MovilController extends Controller
         // -----------------------------------------------------------------
 
         // 4. VERIFICAR GEOLOCALIZACIÓN (Tu lógica actual)
-        $targetLat = (float) config('app.target_latitud', -17.39563447179674);
-        $targetLng = (float) config('app.target_longitud', -66.15809478773795);
-        $targetRadio = (float) config('app.target_radio_metros', 20);
+        $targetLat = (float) config('app.target_latitud', -17.33672);
+        $targetLng = (float) config('app.target_longitud', -66.1972);
+        $targetRadio = (float) config('app.target_radio_metros', 40);
 
         $distancia = $this->calcularDistanciaHaversine(
             $data['latitud'], $data['longitud'],

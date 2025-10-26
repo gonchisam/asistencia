@@ -3,17 +3,18 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str; // Importa la clase Str para generar el UUID
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-class Estudiante extends Authenticatable // Cambiado de Model a Authenticatable
+
+class Estudiante extends Authenticatable
 {
-    // --- Asegúrate de tener estos traits ---
     use HasApiTokens, HasFactory;
 
-    protected $table = 'students'; // O 'estudiantes' si se llama así
+    protected $table = 'students';
 
     protected $fillable = [
         'uid',
@@ -39,25 +40,43 @@ class Estudiante extends Authenticatable // Cambiado de Model a Authenticatable
         'fecha_nacimiento' => 'date',
     ];
 
+    protected $appends = ['nombre_completo'];
+
+    /**
+     * Mutators para convertir a mayúsculas al guardar
+     */
+    protected function nombre(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => mb_strtoupper(trim($value), 'UTF-8'),
+        );
+    }
+
+    protected function primerApellido(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => mb_strtoupper(trim($value), 'UTF-8'),
+        );
+    }
+
+    protected function segundoApellido(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => $value ? mb_strtoupper(trim($value), 'UTF-8') : null,
+        );
+    }
+
     /**
      * El método "booted" del modelo.
-     * Sobreescribe para asignar automáticamente el usuario que crea/actualiza
-     * y para generar un UUID para el campo 'uid' antes de crear el registro.
      */
     protected static function booted()
     {
         static::creating(function ($estudiante) {
-            // Se ha comentado esta línea para que se use el UID del formulario
-            // en lugar de generar uno nuevo.
-            // $estudiante->uid = (string) Str::uuid();
-            
-            // Asigna el usuario creador y actualizador
             $estudiante->created_by = Auth::id() ?? 1;
             $estudiante->updated_by = Auth::id() ?? 1;
         });
 
         static::updating(function ($estudiante) {
-            // Asigna el usuario que actualiza el registro
             $estudiante->updated_by = Auth::id() ?? 1;
         });
     }
@@ -80,7 +99,6 @@ class Estudiante extends Authenticatable // Cambiado de Model a Authenticatable
 
     /**
      * Relación para obtener las asistencias de un estudiante.
-     * Conecta el campo 'uid' de ambas tablas.
      */
     public function asistencias()
     {
@@ -108,7 +126,6 @@ class Estudiante extends Authenticatable // Cambiado de Model a Authenticatable
      */
     public function cursos()
     {
-        // Relación Muchos-a-Muchos con la tabla pivote 'curso_estudiante'
         return $this->belongsToMany(Curso::class, 'curso_estudiante');
     }
 }

@@ -332,4 +332,124 @@ class StudentController extends Controller
         return redirect()->route('students.index')
                          ->with('status', 'Dispositivo del estudiante desvinculado exitosamente.');
     }
+
+    // --- MÉTODOS PARA IMPORTAR ESTUDIANTES (Paso 3) ---
+
+    public function vistaImportarEstudiantes()
+    {
+        // Simplemente retornamos una vista para subir el archivo
+        return view('admin.students.importar'); // Crearemos esta vista
+    }
+
+    public function procesarImportarEstudiantes(Request $request)
+    {
+        $request->validate([
+            'archivo_excel' => 'required|mimes:xlsx,xls',
+        ]);
+
+        // Creamos la instancia del importador
+        $import = new \App\Imports\EstudiantesImport;
+
+        try {
+            // Importamos el archivo
+            \Excel::import($import, $request->file('archivo_excel'));
+            
+            // Actualizamos el .txt para el Arduino
+            $this->generateStudentsListForArduino(); 
+
+            // --- NUEVO MANEJO DE ERRORES ---
+            $failures = $import->getFailures();
+            
+            if (count($failures) > 0) {
+                $mensajesError = [];
+                foreach ($failures as $failure) {
+                    $mensajesError[] = "<strong>Fila #" . $failure->row() . "</strong>: " . implode(", ", $failure->errors()) . " (Valor problemático: '<em>" . $failure->values()[$failure->attribute()] . "</em>')";
+                }
+                
+                // Redirigimos de vuelta CON los errores
+                return redirect()->back()
+                    ->with('warning', 'La importación se completó, pero algunas filas fueron omitidas por errores.')
+                    ->with('import_errors', $mensajesError);
+            }
+
+            return redirect()->route('students.index')->with('status', '¡Estudiantes importados exitosamente! Todos los registros eran válidos.');
+        
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+             // Esto captura errores si NO usamos SkipsOnFailure
+             $failures = $e->failures();
+             // ... puedes manejar esto de forma similar si lo prefieres ...
+        
+        } catch (\Exception $e) {
+            Log::error('Error al importar estudiantes: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Ocurrió un error crítico durante la importación: ' . $e->getMessage());
+        }
+    }
+
+    // --- MÉTODOS PARA ASIGNAR UID (Paso 4) ---
+
+    // --- MÉTODOS PARA ASIGNAR UID (Paso 4) ---
+
+    public function vistaAsignarUid()
+    {
+        // ¡NUEVA LÓGICA!
+        // Buscamos a todos los estudiantes ACTIVOS que aún no tengan UID (uid es null)
+        $estudiantesPendientes = Estudiante::whereNull('uid')
+                                          ->where('estado', 1)
+                                          ->orderBy('primer_apellido')
+                                          ->orderBy('nombre')
+                                          ->get();
+
+        // Enviamos esa lista a la vista
+        return view('admin.students.asignar_uid', compact('estudiantesPendientes'));
+    }
+
+    public function procesarAsignarUid(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'uid' => 'required|string|unique:students,uid', // Validamos que el UID sea único
+        ]);
+
+        $student = Estudiante::find($request->student_id);
+
+        // Verificamos que el estudiante no tenga ya un UID
+        if ($student->uid) {
+            return redirect()->back()->with('error', 'Este estudiante ya tiene un UID asignado.');
+        }
+
+        $student->update([
+            'uid' => strtoupper($request->uid),
+            'updated_by' => Auth::id()
+        ]);
+
+        // ¡Importante! Actualizamos el .txt para el Arduino
+        $this->generateStudentsListForArduino();
+
+        return redirect()->route('admin.estudiantes.asignar-uid.vista')->with('status', '¡UID ' . $student->uid . ' asignado exitosamente a ' . $student->nombre_completo . '!');
+    }
+
+    // --- MÉTODO DE BÚSQUEDA AJAX (Paso 4) ---
+
+    public function buscarPorCi(Request $request)
+    {
+        $request->validate(['ci' => 'required|string']);
+
+        $student = Estudiante::where('ci', $request->ci)->first();
+
+        if (!$student) {
+            return response()->json(['error' => 'No se encontró ningún estudiante con ese CI.'], 404);
+        }
+
+        if ($student->uid) {
+            return response()->json(['error' => 'Este estudiante ya tiene un UID asignado (' . $student->uid . ').'], 400);
+        }
+
+        // Si se encuentra y no tiene UID, devolvemos sus datos
+        return response()->json([
+            'id' => $student->id,
+            'nombre_completo' => $student->nombre_completo, // Asume que tienes un accesor 'nombre_completo' en el modelo Estudiante
+            'carrera' => $student->carrera,
+            'año' => $student->año,
+        ]);
+    }
 }

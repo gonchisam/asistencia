@@ -26,17 +26,23 @@
             @endcan
         </div>
 
-        {{-- Mensajes de estado con el estilo del login --}}
+        {{-- Mensajes de estado --}}
         @if (session('status'))
             <div class="mb-6 p-4 bg-green-100 border border-green-300 rounded-lg text-green-700 text-sm transition duration-300 ease-in-out">
                 <strong class="font-semibold">¡Éxito!</strong>
                 <span class="block sm:inline">{{ session('status') }}</span>
             </div>
         @endif
+        @if (session('error'))
+            <div class="mb-6 p-4 bg-red-100 border border-red-300 rounded-lg text-red-700 text-sm transition duration-300 ease-in-out">
+                <strong class="font-semibold">¡Error!</strong>
+                <span class="block sm:inline">{{ session('error') }}</span>
+            </div>
+        @endif
 
-        {{-- Botón principal de registro --}}
         @can('manage-students')
-        <div class="mb-8">
+        <div class="mb-8 flex flex-wrap gap-4">
+            {{-- Botón principal de registro --}}
             <a href="{{ route('students.create') }}" 
                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 ease-in-out shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 inline-flex items-center">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,10 +50,27 @@
                 </svg>
                 {{ __('Registrar Nuevo Estudiante') }}
             </a>
-        </div>
+            
+            {{-- Botón Importar Estudiantes --}}
+            <a href="{{ route('admin.estudiantes.importar.vista') }}" 
+               class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 ease-in-out shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 inline-flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                </svg>
+                {{ __('Importar Estudiantes (Excel)') }}
+            </a>
+            
+            {{-- Botón Asignar UID --}}
+            <a href="{{ route('admin.estudiantes.asignar-uid.vista') }}" 
+               class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-lg transition duration-200 ease-in-out shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 inline-flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m4 0h1M4 4h16v4H4V4z"></path>
+                </svg>
+                {{ __('Asignar Tarjetas (UID)') }}
+            </a>
+            </div>
         @endcan
-
-        {{-- Filtros con el estilo del login --}}
+        {{-- Filtros --}}
         <div class="mb-8 bg-gray-50 rounded-xl p-6 border border-gray-200">
             <h3 class="text-lg font-semibold text-gray-700 mb-4">Filtrar Estudiantes</h3>
             <form action="{{ route('students.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -107,7 +130,7 @@
         {{-- Tabla de estudiantes --}}
         <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
             <table class="min-w-full bg-white">
-                <thead>
+                <thead class="bg-gray-50 text-gray-600 uppercase text-sm leading-normal">
                     <tr class="bg-gray-50 text-gray-600 uppercase text-sm leading-normal">
                         {{-- Columna Nombre --}}
                         <th class="py-4 px-6 text-left">
@@ -184,7 +207,15 @@
                             <td class="py-4 px-6 text-left whitespace-nowrap">
                                 <span class="font-medium text-gray-900">{{ $student->nombre }} {{ $student->primer_apellido }} {{ $student->segundo_apellido }}</span>
                             </td>
-                            <td class="py-4 px-6 text-left font-mono text-blue-600">{{ $student->uid }}</td>
+                            
+                            <td class="py-4 px-6 text-left">
+                                @if($student->uid)
+                                    <span class="font-mono text-blue-600">{{ $student->uid }}</span>
+                                @else
+                                    <span class="font-mono text-xs text-red-500 italic">UID NO ASIGNADO</span>
+                                @endif
+                            </td>
+                            
                             <td class="py-4 px-6 text-left">{{ $student->carrera }}</td>
                             <td class="py-4 px-6 text-left">{{ $student->año }}</td>
                             <td class="py-4 px-6 text-left">
@@ -194,7 +225,7 @@
                                 </span>
                             </td>
                             
-                            {{-- Celda de Acciones (con contenido solo para admins) --}}
+                            {{-- Celda de Acciones --}}
                             <td class="py-4 px-6 text-center">
                                 @can('manage-students')
                                 <div class="flex items-center justify-center space-x-3">
@@ -215,7 +246,6 @@
                                             </button>
                                         </form>
                                         
-                                        {{-- Botón Eliminar ID Celular (solo si tiene device_id) --}}
                                         @if ($student->device_id)
                                             <form action="{{ route('students.unlinkDevice', $student->id) }}" method="POST" 
                                                   onsubmit="return confirm('¿Estás seguro de que deseas desvincular el dispositivo de este estudiante? Perderá el acceso en ese celular.');">
@@ -229,7 +259,7 @@
                                         @endif
                                         
                                     @else
-                                        {{-- Botón Reactivar para estudiantes inactivos --}}
+                                        {{-- Botón Reactivar --}}
                                         <form action="{{ route('students.restore', $student->id) }}" method="POST" 
                                               onsubmit="return confirm('¿Estás seguro de que quieres reactivar a este estudiante?');">
                                             @csrf
@@ -263,7 +293,7 @@
             </table>
         </div>
 
-        {{-- Paginación con el estilo del login --}}
+        {{-- Paginación --}}
         <div class="mt-6 flex justify-center">
             <div class="bg-white rounded-lg shadow-sm p-4">
                 {{ $estudiantes->appends(request()->query())->links() }}

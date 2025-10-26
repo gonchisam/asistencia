@@ -73,7 +73,17 @@ Route::middleware('auth')->group(function () {
         
         // Rutas estándar de Cursos (admin/cursos)
         Route::resource('cursos', CursoController::class);
+
+        // --- NUEVAS RUTAS: IMPORTAR ESTUDIANTES ---
+        Route::get('estudiantes/importar', [StudentController::class, 'vistaImportarEstudiantes'])->name('estudiantes.importar.vista');
+        Route::post('estudiantes/importar', [StudentController::class, 'procesarImportarEstudiantes'])->name('estudiantes.importar.procesar');
+
+        // --- NUEVAS RUTAS: ASIGNAR RFID POST-IMPORTACIÓN ---
+        Route::get('estudiantes/asignar-uid', [StudentController::class, 'vistaAsignarUid'])->name('estudiantes.asignar-uid.vista');
+        Route::post('estudiantes/asignar-uid', [StudentController::class, 'procesarAsignarUid'])->name('estudiantes.asignar-uid.procesar');
+        // (Nota: Usaremos la ruta 'students.check_uid' que ya existe para el AJAX)
         
+                
         // Rutas para GESTIONAR un curso específico (desde la vista 'cursos.show')
         
         // Añadir/Eliminar Horarios (Dia/Periodo/Aula) a un Curso
