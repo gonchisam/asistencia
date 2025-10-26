@@ -34,101 +34,76 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // Importar Docentes
+    Route::get('/profile/importar-docentes', [ProfileController::class, 'showImportForm'])->name('profile.showImportForm');
+    Route::post('/profile/import-docentes', [ProfileController::class, 'importDocentes'])->name('profile.importDocentes');
+
     // Gestión de Estudiantes
     Route::resource('students', StudentController::class);
     Route::patch('/students/{student}/restore', [StudentController::class, 'restore'])->name('students.restore');
+    Route::put('students/{student}/unlink-device', [StudentController::class, 'unlinkDevice'])->name('students.unlinkDevice');
+    Route::post('/students/check-uid', [StudentController::class, 'checkUid'])->name('students.check_uid');
 
     // Ruta para Configuración
     Route::get('/configuracion', [ConfiguracionController::class, 'index'])->name('configuracion.index');
 
-    // --- NUEVA RUTA PARA DESVINCULAR DISPOSITIVO ---
-    Route::put('students/{student}/unlink-device', [StudentController::class, 'unlinkDevice'])->name('students.unlinkDevice');
-    
     // Rutas para Reportes
     Route::get('/reportes', [ReportesController::class, 'index'])->name('reportes.index');
     Route::get('/reportes/pdf', [ReportesController::class, 'generatePdf'])->name('reportes.pdf');
     Route::get('/reportes/excel', [ReportesController::class, 'generateExcel'])->name('reportes.excel');
 
-    // Verifica si un UID ya existe (esta ruta sí necesita autenticación)
-    Route::post('/students/check-uid', [StudentController::class, 'checkUid'])->name('students.check_uid');
-
     // Estadísticas
     Route::get('/estadisticas', [EstadisticasController::class, 'index'])->name('estadisticas.index');
 
-    // ==========================================================
-    // ==== 1. AÑADIR ESTA NUEVA RUTA (GET) ====
-    Route::get('/profile/importar-docentes', [ProfileController::class, 'showImportForm'])
-         ->name('profile.showImportForm');
-
-    // ==== 2. ESTA ES LA RUTA QUE YA TENÍAS (POST) ====
-    Route::post('/profile/import-docentes', [ProfileController::class, 'importDocentes'])
-         ->name('profile.importDocentes');
-    // ==========================================================
-
-    // === INICIO: RUTA DE IMPORTACIÓN ===
-    Route::post('/profile/import-docentes', [ProfileController::class, 'importDocentes'])
-         ->name('profile.importDocentes');
-    // === FIN: RUTA DE IMPORTACIÓN ===
-
-    // --- NUEVAS RUTAS ADMINISTRATIVAS ---
+    // --- RUTAS ADMINISTRATIVAS ---
     Route::prefix('admin')->name('admin.')->group(function () {
         
-        // --- Rutas CRUD básicas ---
-        
-        // Rutas para Aulas (admin/aulas)
+        // === AULAS ===
         Route::resource('aulas', AulaController::class);
         
-        // Rutas para Periodos (admin/periodos)
+        // === PERIODOS ===
         Route::resource('periodos', PeriodoController::class);
         
-        // --- [INICIO DE LA CORRECCIÓN] ---
-        // Rutas para Materias (admin/materias)
-        // Le decimos que excluya el método "show" que no usamos.
-        Route::resource('materias', MateriaController::class)->except(['show']);
-        // --- [FIN DE LA CORRECCIÓN] ---
-
-        // --- NUEVAS RUTAS: IMPORTAR MATERIAS ---
+        // === MATERIAS ===
         Route::get('materias/importar', [MateriaController::class, 'vistaImportar'])->name('materias.importar.vista');
         Route::post('materias/importar', [MateriaController::class, 'procesarImportar'])->name('materias.importar.procesar');
-
-        // --- AÑADIR ESTA LÍNEA ---
         Route::delete('materias/destroy-all', [MateriaController::class, 'destroyAll'])->name('materias.destroyAll');
+        Route::resource('materias', MateriaController::class)->except(['show']);
 
-        // --- Rutas de Cursos (las más importantes) ---
-        
-        // Rutas estándar de Cursos (admin/cursos)
-        Route::resource('cursos', CursoController::class);
-
-        // --- NUEVAS RUTAS: IMPORTAR ESTUDIANTES ---
+        // === ESTUDIANTES (Importación y Asignación de UID) ===
         Route::get('estudiantes/importar', [StudentController::class, 'vistaImportarEstudiantes'])->name('estudiantes.importar.vista');
         Route::post('estudiantes/importar', [StudentController::class, 'procesarImportarEstudiantes'])->name('estudiantes.importar.procesar');
-
-        // --- NUEVAS RUTAS: ASIGNAR RFID POST-IMPORTACIÓN ---
         Route::get('estudiantes/asignar-uid', [StudentController::class, 'vistaAsignarUid'])->name('estudiantes.asignar-uid.vista');
         Route::post('estudiantes/asignar-uid', [StudentController::class, 'procesarAsignarUid'])->name('estudiantes.asignar-uid.procesar');
-        // (Nota: Usaremos la ruta 'students.check_uid' que ya existe para el AJAX)
+
+        // === CURSOS ===
+        // ⚠️ IMPORTANTE: Las rutas específicas deben ir ANTES del Route::resource
         
-                
-        // Rutas para GESTIONAR un curso específico (desde la vista 'cursos.show')
+        // Importación de Cursos Completos
+        Route::get('cursos/importar-completos', [CursoController::class, 'vistaImportarCompletos'])->name('cursos.importar-completos.vista');
+        Route::post('cursos/importar-completos', [CursoController::class, 'procesarImportarCompletos'])->name('cursos.importar-completos.procesar');
         
-        // Añadir/Eliminar Horarios (Dia/Periodo/Aula) a un Curso
+        // Importación de Inscripciones
+        Route::get('inscripciones/importar', [CursoController::class, 'vistaImportar'])->name('inscripciones.importar.vista');
+        Route::post('inscripciones/importar', [CursoController::class, 'procesarImportacion'])->name('inscripciones.importar.procesar');
+
+        // Rutas CRUD estándar de Cursos
+        Route::resource('cursos', CursoController::class);
+
+        // Gestión de Horarios de un Curso
         Route::post('cursos/{curso}/horarios', [CursoController::class, 'storeHorario'])->name('cursos.horarios.store');
         Route::delete('cursos/horarios/{cursoHorario}', [CursoController::class, 'destroyHorario'])->name('cursos.horarios.destroy');
 
-        // Inscribir/Eliminar Estudiantes a un Curso
+        // Gestión de Estudiantes de un Curso
         Route::post('cursos/{curso}/estudiantes', [CursoController::class, 'storeEstudiante'])->name('cursos.estudiantes.store');
         Route::delete('cursos/{curso}/estudiantes/{estudiante}', [CursoController::class, 'destroyEstudiante'])->name('cursos.estudiantes.destroy');
-
-        // --- Rutas de Importación (Excel) ---
-        
-        // Vista para mostrar el formulario de subida
-        Route::get('inscripciones/importar', [CursoController::class, 'vistaImportar'])->name('inscripciones.importar.vista');
-        // Ruta que procesa el archivo Excel
-        Route::post('inscripciones/importar', [CursoController::class, 'procesarImportacion'])->name('inscripciones.importar.procesar');
     });
 });
 
-// NUEVAS RUTAS PÚBLICAS PARA COMUNICACIÓN CON EL DISPOSITIVO ARDUINO
-// Estas rutas no requieren autenticación
+/*
+|--------------------------------------------------------------------------
+| Rutas Públicas (API para Arduino/RFID)
+|--------------------------------------------------------------------------
+*/
 Route::post('/api/rfid-scan', [StudentController::class, 'receiveUid']);
 Route::get('/api/get-uid', [StudentController::class, 'getTempUid']);

@@ -18,6 +18,7 @@ class Curso extends Model
         'materia_id',
         'paralelo',
         'gestion',
+        'docente_id', // <-- NUEVO CAMPO
     ];
 
     /**
@@ -41,8 +42,14 @@ class Curso extends Model
      */
     public function estudiantes()
     {
-        // Relación Muchos-a-Muchos con la tabla pivote 'curso_estudiante'
-        // y asumiendo que tu modelo de estudiante es 'Estudiante'
         return $this->belongsToMany(Estudiante::class, 'curso_estudiante');
+    }
+
+    /**
+     * ¡NUEVA RELACIÓN! Obtiene el docente asignado al curso.
+     */
+    public function docente()
+    {
+        return $this->belongsTo(User::class, 'docente_id');
     }
 }

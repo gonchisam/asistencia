@@ -13,6 +13,7 @@ use App\Models\CursoHorario;
 // Imports de Excel
 use App\Imports\InscripcionesImport;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\CursosCompletosImport;
 
 // Otros
 use Illuminate\Http\Request;
@@ -195,5 +196,60 @@ class CursoController extends Controller
         
         return redirect()->route('admin.cursos.index')
                          ->with('success', 'Inscripciones importadas correctamente.');
+    }
+
+    // --- ¡NUEVOS MÉTODOS! Importación de Cursos Completos ---
+
+    /**
+     * Muestra la vista para importar cursos completos (con horarios y docente)
+     */
+    public function vistaImportarCompletos()
+    {
+        return view('admin.cursos.importar-completos');
+    }
+
+    /**
+     * Procesa la importación de cursos completos desde Excel
+     */
+    public function procesarImportarCompletos(Request $request)
+    {
+        $request->validate([
+            'archivo_excel' => 'required|mimes:xls,xlsx,txt'
+        ]);
+
+        $import = new CursosCompletosImport();
+
+        try {
+            Excel::import($import, $request->file('archivo_excel'));
+
+            $failures = $import->getFailures();
+            $resumen = $import->getResumen();
+
+            // Construir mensaje de éxito con el resumen
+            $mensaje = "✅ Importación completada: ";
+            $mensaje .= "{$resumen['cursos_creados']} curso(s) creado(s), ";
+            $mensaje .= "{$resumen['cursos_actualizados']} curso(s) actualizado(s), ";
+            $mensaje .= "{$resumen['horarios_creados']} horario(s) añadido(s).";
+
+            if (count($failures) > 0) {
+                $errorMessages = [];
+                foreach ($failures as $failure) {
+                    $errorMessages[] = "Fila {$failure->row()}: " . implode(', ', $failure->errors());
+                }
+                
+                return back()->with('import_errors', $errorMessages)
+                             ->with('warning', $mensaje . ' ⚠️ Pero algunas filas tuvieron errores.');
+            }
+
+            return redirect()->route('admin.cursos.index')
+                             ->with('success', $mensaje);
+
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+             $failures = $e->failures();
+             return back()->with('import_errors', $failures)
+                          ->with('warning', 'Ocurrió un error de validación durante la importación.');
+        } catch (\Exception $e) {
+            return back()->withErrors('Error: ' . $e->getMessage());
+        }
     }
 }
