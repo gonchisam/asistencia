@@ -15,19 +15,49 @@
                 <div class="text-gray-900">
                     
                     {{-- 1. Encabezado y Botón de Creación Unificado --}}
-                    <div class="flex items-center justify-between mb-8 pb-6 border-b border-gray-200">
-                        
-                        {{-- Título Destacado en Azul --}}
-                        <h1 class="text-3xl font-extrabold text-gray-900">
-                            <span class="text-blue-600">Gestión de</span> Materias
-                        </h1>
+                    {{-- 1. Encabezado y Botón de Creación Unificado --}}
+<div class="flex flex-wrap items-center justify-between mb-8 pb-6 border-b border-gray-200 gap-4">
+    
+    {{-- Título Destacado en Azul --}}
+    <h1 class="text-3xl font-extrabold text-gray-900">
+        <span class="text-blue-600">Gestión de</span> Materias
+    </h1>
 
-                        {{-- Botón de Crear Nuevo Periodo: Estilo azul moderno --}}
-                        <a href="{{ route('admin.materias.create') }}" 
-                           class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-semibold text-sm text-white uppercase tracking-wider hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ease-in-out duration-150 shadow-md hover:shadow-lg">
-                            <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-                            Crear Nueva Materia
-                        </a>
+    {{-- Contenedor de Botones --}}
+    <div class="flex items-center space-x-3">
+
+                            {{-- --- [INICIO] BOTÓN BORRAR TODO (NUEVO) --- --}}
+                            {{-- Solo mostramos el botón si hay materias para borrar --}}
+                            @if(!$materias->isEmpty())
+                                <form action="{{ route('admin.materias.destroyAll') }}" method="POST" onsubmit="return confirm('⚠️ ¡ALERTA MÁXIMA! ⚠️\n\n¿Estás ABSOLUTAMENTE SEGURO de que quieres eliminar TODAS las materias?\n\nEsta acción no se puede deshacer.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    
+                                    {{-- Clases de botón de peligro (rojo) --}}
+                                    <button type="submit"
+                                       class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-lg font-semibold text-sm text-white uppercase tracking-wider hover:bg-red-700 active:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition ease-in-out duration-150 shadow-md hover:shadow-lg">
+                                        <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        Borrar Todo
+                                    </button>
+                                </form>
+                            @endif
+                            {{-- --- [FIN] BOTÓN BORRAR TODO --- --}}
+
+
+                            {{-- Botón Importar --}}
+                            <a href="{{ route('admin.materias.importar.vista') }}" 
+                               class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-lg font-semibold text-sm text-white uppercase tracking-wider hover:bg-gray-700 active:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition ease-in-out duration-150 shadow-md hover:shadow-lg">
+                                <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                Importar
+                            </a>
+
+                            {{-- Botón de Crear Nueva Materia: Estilo azul moderno --}}
+                            <a href="{{ route('admin.materias.create') }}" 
+                               class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-semibold text-sm text-white uppercase tracking-wider hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ease-in-out duration-150 shadow-md hover:shadow-lg">
+                                <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                                Crear Nueva Materia
+                            </a>
+                        </div>
                     </div>
 
                     @include('admin.partials._session-messages')
@@ -99,7 +129,7 @@
                                                           {{ ($ano === $firstAno && $carrera === $firstCarrera) ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}"
                                                    data-carrera="{{ Str::slug($carrera) }}" 
                                                    data-ano="{{ $ano }}">
-                                                    {{ $ano }}° Año
+                                                    {{ $ano }}
                                                 </a>
                                             @endforeach
                                         </nav>

@@ -66,8 +66,18 @@ Route::middleware('auth')->group(function () {
         // Rutas para Periodos (admin/periodos)
         Route::resource('periodos', PeriodoController::class);
         
+        // --- [INICIO DE LA CORRECCIÓN] ---
         // Rutas para Materias (admin/materias)
-        Route::resource('materias', MateriaController::class);
+        // Le decimos que excluya el método "show" que no usamos.
+        Route::resource('materias', MateriaController::class)->except(['show']);
+        // --- [FIN DE LA CORRECCIÓN] ---
+
+        // --- NUEVAS RUTAS: IMPORTAR MATERIAS ---
+        Route::get('materias/importar', [MateriaController::class, 'vistaImportar'])->name('materias.importar.vista');
+        Route::post('materias/importar', [MateriaController::class, 'procesarImportar'])->name('materias.importar.procesar');
+
+        // --- AÑADIR ESTA LÍNEA ---
+        Route::delete('materias/destroy-all', [MateriaController::class, 'destroyAll'])->name('materias.destroyAll');
 
         // --- Rutas de Cursos (las más importantes) ---
         
