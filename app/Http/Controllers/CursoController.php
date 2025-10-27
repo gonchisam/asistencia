@@ -9,6 +9,7 @@ use App\Models\Periodo;
 use App\Models\Aula;
 use App\Models\Estudiante;
 use App\Models\CursoHorario;
+use App\Models\User; // <-- IMPORT NECESARIO
 
 // Imports de Excel
 use App\Imports\InscripcionesImport;
@@ -17,7 +18,7 @@ use App\Imports\CursosCompletosImport;
 
 // Otros
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller; // <--- ¡¡ESTA LÍNEA ES LA SOLUCIÓN!!
+use App\Http\Controllers\Controller;
 
 class CursoController extends Controller
 {
@@ -27,15 +28,21 @@ class CursoController extends Controller
     public function index()
     {
         // Usamos 'join' para poder ordenar por campos de la tabla 'materias'
-        // Seleccionamos todos los campos de 'cursos' y los necesarios de 'materias'
-        // Es importante usar 'cursos.*' para evitar conflictos de 'id'
+        // ¡NUEVO! Usamos 'leftJoin' para incluir el nombre del docente de la tabla 'users'.
         $cursos = Curso::join('materias', 'cursos.materia_id', '=', 'materias.id')
-                       ->select('cursos.*', 'materias.nombre as materia_nombre', 'materias.carrera', 'materias.ano_cursado')
-                       ->orderBy('materias.carrera')        // Orden 1: Carrera
-                       ->orderBy('materias.ano_cursado')    // Orden 2: Año
-                       ->orderBy('cursos.paralelo')         // Orden 3: Paralelo
-                       ->orderBy('materias.nombre')         // Orden 4: Nombre de materia (opcional)
-                       ->paginate(15);                   // O el número que prefieras
+                       ->leftJoin('users', 'cursos.docente_id', '=', 'users.id') // <-- CAMBIO CLAVE
+                       ->select(
+                           'cursos.*', 
+                           'materias.nombre as materia_nombre', 
+                           'materias.carrera', 
+                           'materias.ano_cursado',
+                           'users.name as docente_nombre' // <-- CAMBIO CLAVE
+                       )
+                       ->orderBy('materias.carrera')
+                       ->orderBy('materias.ano_cursado')
+                       ->orderBy('cursos.paralelo')
+                       ->orderBy('materias.nombre')
+                       ->paginate(15);
 
         // La vista recibirá la colección paginada ya ordenada
         return view('admin.cursos.index', compact('cursos'));
@@ -47,7 +54,11 @@ class CursoController extends Controller
     public function create()
     {
         $materias = Materia::orderBy('nombre')->get();
-        return view('admin.cursos.create', compact('materias'));
+        // 1. Obtener la lista de docentes (asumiendo que tienen role = 'docente')
+        $docentes = User::where('role', 'docente')->orderBy('name')->get(); 
+        
+        // 2. Pasar la lista de docentes a la vista
+        return view('admin.cursos.create', compact('materias', 'docentes'));
     }
 
     /**
@@ -59,6 +70,7 @@ class CursoController extends Controller
             'materia_id' => 'required|exists:materias,id',
             'paralelo' => 'required|string|max:50',
             'gestion' => 'required|string|max:50',
+            'docente_id' => 'nullable|exists:users,id', // <-- VALIDACIÓN AÑADIDA
         ]);
         
         $curso = Curso::create($request->all());
@@ -72,7 +84,8 @@ class CursoController extends Controller
      */
     public function show(Curso $curso)
     {
-        $curso->load('materia', 'horarios.periodo', 'horarios.aula', 'estudiantes');
+        // Asegura que la relación del docente se carga
+        $curso->load('materia', 'horarios.periodo', 'horarios.aula', 'estudiantes', 'docente');
 
         // Datos para los formularios <select>
         $periodos = Periodo::all();
@@ -91,7 +104,10 @@ class CursoController extends Controller
     public function edit(Curso $curso)
     {
         $materias = Materia::orderBy('nombre')->get();
-        return view('admin.cursos.edit', compact('curso', 'materias'));
+        // OBTENER DOCENTES (SOLUCIONA EL ERROR UNDEFINED VARIABLE $DOCENTES)
+        $docentes = User::where('role', 'docente')->orderBy('name')->get(); 
+
+        return view('admin.cursos.edit', compact('curso', 'materias', 'docentes')); // <-- DOCENTES PASADO A LA VISTA
     }
 
     /**
@@ -103,6 +119,7 @@ class CursoController extends Controller
             'materia_id' => 'required|exists:materias,id',
             'paralelo' => 'required|string|max:50',
             'gestion' => 'required|string|max:50',
+            'docente_id' => 'nullable|exists:users,id', // <-- VALIDACIÓN AÑADIDA
         ]);
 
         $curso->update($request->all());

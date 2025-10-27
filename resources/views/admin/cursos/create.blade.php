@@ -94,6 +94,22 @@
                                     type="text" name="gestion" :value="old('gestion', date('Y'))" placeholder="{{ date('Y') }}" required />
                                 <x-input-error :messages="$errors->get('gestion')" class="mt-2" />
                             </div>
+
+                            {{-- ¡NUEVO CAMPO! Docente Asignado --}}
+                            <div class="md:col-span-2">
+                                <x-input-label for="docente_id" value="Docente Asignado (Opcional)" class="text-gray-700" />
+                                <select name="docente_id" id="docente_id"
+                                    class="block mt-1 w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm">
+                                    <option value="">-- Sin asignar docente --</option>
+                                    @foreach ($docentes as $docente)
+                                        <option value="{{ $docente->id }}" @selected(old('docente_id') == $docente->id)>
+                                            {{ $docente->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <x-input-error :messages="$errors->get('docente_id')" class="mt-2" />
+                            </div>
+
                         </div>
 
                         {{-- Botones de Acción --}}

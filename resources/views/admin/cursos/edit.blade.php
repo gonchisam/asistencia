@@ -78,6 +78,23 @@
                                 <x-input-error :messages="$errors->get('materia_id')" class="mt-2" />
                             </div>
 
+                            {{-- CAMPO DOCENTE ASIGNADO (NUEVO) --}}
+                            <div class="md:col-span-2">
+                                <x-input-label for="docente_id" value="Docente Asignado (Opcional)" class="text-gray-700" />
+                                <select name="docente_id" id="docente_id"
+                                    class="block mt-1 w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm">
+                                    <option value="">-- Sin asignar docente --</option>
+                                    @foreach ($docentes as $docente)
+                                        <option value="{{ $docente->id }}"
+                                            {{-- Usa old() o el valor actual del curso para preseleccionar --}}
+                                            @selected(old('docente_id', $curso->docente_id) == $docente->id)>
+                                            {{ $docente->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <x-input-error :messages="$errors->get('docente_id')" class="mt-2" />
+                            </div>
+
                             {{-- Campo Paralelo --}}
                             <div>
                                 <x-input-label for="paralelo" value="Paralelo (Ej: A, B, Único)"
@@ -105,8 +122,8 @@
                             {{-- Botón Cancelar (Secundario) --}}
                             <a href="{{ route('admin.cursos.show', $curso) }}"
                                 class="inline-flex items-center px-4 py-2 bg-gray-200 border border-transparent rounded-lg font-semibold text-xs
-                                    text-gray-700 uppercase tracking-wider hover:bg-gray-300 active:bg-gray-400 focus:outline-none
-                                    focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition ease-in-out duration-150 shadow-sm mr-4">
+                                        text-gray-700 uppercase tracking-wider hover:bg-gray-300 active:bg-gray-400 focus:outline-none
+                                        focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition ease-in-out duration-150 shadow-sm mr-4">
                                 Cancelar
                             </a>
 
