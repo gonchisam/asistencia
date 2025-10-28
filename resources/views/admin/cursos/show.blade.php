@@ -143,7 +143,11 @@
                             @forelse ($curso->estudiantes->sortBy('apellido') as $estudiante)
                                 <li class="py-3 px-4 flex justify-between items-center hover:bg-blue-50/50 transition duration-150">
                                     <div class="flex items-center space-x-4">
-                                        <span class="font-bold text-gray-800">{{ $estudiante->apellido }}, {{ $estudiante->nombre }}</span>
+                                        <span class="font-bold text-gray-800">
+                                            {{ $estudiante->primer_apellido }} 
+                                            {{ $estudiante->segundo_apellido ? ' ' . $estudiante->segundo_apellido . ' ' : ' ' }}
+                                            {{ $estudiante->nombre }}
+                                        </span>
                                         <span class="text-gray-600 text-sm"> | CI: {{ $estudiante->ci }}</span>
                                     </div>
                                     <form action="{{ route('admin.cursos.estudiantes.destroy', [$curso, $estudiante]) }}" method="POST" onsubmit="return confirm('⚠️ ¿Está seguro de quitar a {{ $estudiante->nombre }} del curso?');">

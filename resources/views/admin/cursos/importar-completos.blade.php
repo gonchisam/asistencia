@@ -104,25 +104,25 @@ dia | periodo | aula | materia | carrera | ano_cursado | paralelo | gestion | do
                                 <tbody class="bg-white">
                                     <tr>
                                         <td class="border px-2 py-1">lunes</td>
-                                        <td class="border px-2 py-1">1° Periodo</td>
-                                        <td class="border px-2 py-1">Aula 101</td>
-                                        <td class="border px-2 py-1">MATEMÁTICA I</td>
+                                        <td class="border px-2 py-1">Primer periodo</td>
+                                        <td class="border px-2 py-1">AULA 2-4</td>
+                                        <td class="border px-2 py-1">EMPRENDIMIENTO PRODUCTIVO (SIS)</td>
                                         <td class="border px-2 py-1">Sistemas</td>
                                         <td class="border px-2 py-1">Primer Año</td>
-                                        <td class="border px-2 py-1">A</td>
+                                        <td class="border px-2 py-1">Primero A</td>
                                         <td class="border px-2 py-1">2025</td>
-                                        <td class="border px-2 py-1">juan.perez@instituto.edu</td>
+                                        <td class="border px-2 py-1">alinvar@saca.edu</td>
                                     </tr>
                                     <tr class="bg-gray-50">
                                         <td class="border px-2 py-1">martes</td>
-                                        <td class="border px-2 py-1">2° Periodo</td>
-                                        <td class="border px-2 py-1">Lab 2</td>
-                                        <td class="border px-2 py-1">PROGRAMACIÓN</td>
+                                        <td class="border px-2 py-1">Tercer periodo</td>
+                                        <td class="border px-2 py-1">AULA 1-7</td>
+                                        <td class="border px-2 py-1">PROGRAMACIÓN II</td>
                                         <td class="border px-2 py-1">Sistemas</td>
-                                        <td class="border px-2 py-1">Primer Año</td>
-                                        <td class="border px-2 py-1">B</td>
+                                        <td class="border px-2 py-1">Segundo Año</td>
+                                        <td class="border px-2 py-1">Segundo B</td>
                                         <td class="border px-2 py-1">2025</td>
-                                        <td class="border px-2 py-1">maria.lopez@instituto.edu</td>
+                                        <td class="border px-2 py-1">joeala@saca.edu</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -135,10 +135,10 @@ dia | periodo | aula | materia | carrera | ano_cursado | paralelo | gestion | do
                             </p>
                             <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
                                 <li><strong>Día:</strong> Escribir en español: lunes, martes, miércoles, jueves, viernes, sábado, domingo</li>
-                                <li><strong>Periodo:</strong> Debe existir previamente en el sistema (ej: "1° Periodo", "Mañana", etc.)</li>
-                                <li><strong>Aula:</strong> Debe existir en el sistema</li>
-                                <li><strong>Materia:</strong> Debe estar registrada con su carrera y año</li>
-                                <li><strong>Docente:</strong> Buscar por <strong>correo electrónico</strong> (debe ser usuario con rol "docente")</li>
+                                <li><strong>Periodo:</strong> Debe existir previamente en el sistema (ej: "Primer periodo , Segundo periodo, etc.)</li>
+                                <li><strong>Aula:</strong> Debe existir en el sistema.</li>
+                                <li><strong>Materia:</strong> Debe estar registrada con su carrera y año.</li>
+                                <li><strong>Docente:</strong> Buscar por <strong>correo electrónico.</strong></li>
                                 <li><strong>Duplicados:</strong> Si el curso ya existe, solo se añade el horario (no se duplica el curso)</li>
                             </ul>
                         </div>

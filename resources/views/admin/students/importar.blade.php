@@ -85,10 +85,70 @@
                         </div>
                     </div>
 
+                    {{-- Tabla de Ejemplos --}}
+                    <div class="mt-6">
+                        <h5 class="font-bold text-lg text-gray-800 mb-3 flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Ejemplos de Formato Correcto:
+                        </h5>
+                        
+                        <div class="overflow-x-auto bg-white rounded-lg border border-gray-200 shadow-sm">
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-gray-100 border-b border-gray-300">
+                                    <tr>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700 border-r">ci</th>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700 border-r">nombre</th>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700 border-r">primer_apellido</th>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700 border-r">segundo_apellido</th>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700 border-r">fecha_nacimiento</th>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700 border-r">carrera</th>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700 border-r">año</th>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700 border-r">sexo</th>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700 border-r">correo</th>
+                                        <th class="py-2 px-3 text-left font-semibold text-gray-700">celular</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    {{-- Ejemplo 1 --}}
+                                    <tr class="hover:bg-blue-50 transition-colors">
+                                        <td class="py-2 px-3 border-r font-mono text-xs">12345678</td>
+                                        <td class="py-2 px-3 border-r">María</td>
+                                        <td class="py-2 px-3 border-r">González</td>
+                                        <td class="py-2 px-3 border-r">Pérez</td>
+                                        <td class="py-2 px-3 border-r font-mono text-xs">2000-05-15</td>
+                                        <td class="py-2 px-3 border-r">Sistemas</td>
+                                        <td class="py-2 px-3 border-r">Primer año</td>
+                                        <td class="py-2 px-3 border-r">Femenino</td>
+                                        <td class="py-2 px-3 border-r font-mono text-xs">maria.gonzalez@gmail.com</td>
+                                        <td class="py-2 px-3">71409147</td>
+                                    </tr>
+                                    {{-- Ejemplo 2 --}}
+                                    <tr class="hover:bg-blue-50 transition-colors">
+                                        <td class="py-2 px-3 border-r font-mono text-xs">6484552-2A</td>
+                                        <td class="py-2 px-3 border-r">Carlos</td>
+                                        <td class="py-2 px-3 border-r">López</td>
+                                        <td class="py-2 px-3 border-r"></td>
+                                        <td class="py-2 px-3 border-r font-mono text-xs">1999-12-20</td>
+                                        <td class="py-2 px-3 border-r">Contabilidad</td>
+                                        <td class="py-2 px-3 border-r">Tercer año</td>
+                                        <td class="py-2 px-3 border-r">Masculino</td>
+                                        <td class="py-2 px-3 border-r font-mono text-xs">carlos.lopez@gmail.com</td>
+                                        <td class="py-2 px-3"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        
+                    </div>
+
                     <p class="font-extrabold text-red-600 mt-5 mb-2">⚠ Consideraciones Importantes:</p>
                     <ul class="list-disc list-inside space-y-1 pl-4 text-xs">
                         <li>El formato de **`fecha_nacimiento`** debe ser **YYYY-MM-DD** (ej: 2001-05-15).</li>
                         <li>Los estudiantes con **CI o Correo duplicado** (en el archivo o en la base de datos) serán **omitidos**.</li>
+                        <li>Las cabeceras deben escribirse exactamente como se muestran (minúsculas, sin espacios extra).</li>
                     </ul>
                 </div>
 

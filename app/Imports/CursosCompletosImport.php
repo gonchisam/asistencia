@@ -187,7 +187,7 @@ class CursosCompletosImport implements ToCollection, WithHeadingRow, WithValidat
             '*.carrera' => 'required|string',
             '*.ano_cursado' => 'required|string',
             '*.paralelo' => 'required|string',
-            '*.gestion' => 'required|string',
+            '*.gestion' => 'required|integer|min:2000',
             '*.docente_correo' => 'nullable|email',
         ];
     }

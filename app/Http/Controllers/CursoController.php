@@ -42,7 +42,7 @@ class CursoController extends Controller
                        ->orderBy('materias.ano_cursado')
                        ->orderBy('cursos.paralelo')
                        ->orderBy('materias.nombre')
-                       ->paginate(15);
+                       ->get();
 
         // La vista recibirá la colección paginada ya ordenada
         return view('admin.cursos.index', compact('cursos'));

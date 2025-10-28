@@ -80,13 +80,60 @@
                         </div>
                     </div>
 
+                    {{-- Tabla de Ejemplos --}}
+                    <div class="mt-6">
+                        <h5 class="font-bold text-lg text-gray-800 mb-3 flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Ejemplos de Formato Correcto:
+                        </h5>
+                        
+                        <div class="overflow-x-auto bg-white rounded-lg border border-gray-200 shadow-sm">
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-gray-100 border-b border-gray-300">
+                                    <tr>
+                                        <th class="py-2 px-3 text-center font-semibold text-gray-700 border-r">name</th>
+                                        <th class="py-2 px-3 text-center font-semibold text-gray-700 border-r">email</th>
+                                        <th class="py-2 px-3 text-center font-semibold text-gray-700">role</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    {{-- Ejemplo 1: Docente --}}
+                                    <tr class="hover:bg-blue-50 transition-colors">
+                                        <td class="py-2 px-3 border-r">Pavel Caceres</td>
+                                        <td class="py-2 px-3 border-r font-mono text-xs">pavcac@saca.edu</td>
+                                        <td class="py-2 px-3">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium  text-blue-800">
+                                                docente
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {{-- Ejemplo 2: Docente --}}
+                                    <tr class="hover:bg-blue-50 transition-colors">
+                                        <td class="py-2 px-3 border-r">Edson Flores</td>
+                                        <td class="py-2 px-3 border-r font-mono text-xs">edsflo@saca.edu</td>
+                                        <td class="py-2 px-3">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium  text-blue-800">
+                                                docente
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                       
+                    </div>
+
                     <p class="font-extrabold text-red-600 mt-5 mb-2">⚠ Consideraciones Importantes:</p>
                     <ul class="list-disc list-inside space-y-1 pl-4 text-xs">
                         <li>{{ __('Las cabeceras distinguen minúsculas/mayúsculas.') }}</li>
-                        <li>{{ __('Los roles válidos son: "administrador" o "docente".') }}</li>
+                        <li>{{ __('EL rol válido es "docente".') }}</li>
                         <li>{{ __('Asegúrate de que el formato de email sea válido.') }}</li>
                         <li>{{ __('Usuarios duplicados (mismo email) serán omitidos.') }}</li>
-                        <li>{{ __('La contraseña por defecto para los nuevos usuarios será "password".') }}</li>
+                        <li>{{ __('La contraseña por defecto para los nuevos usuarios será') }} <code class="font-semibold text-red-600 bg-blue-50 px-1 rounded">{{ __('password') }}</code>.</li>
                     </ul>
                 </div>
 

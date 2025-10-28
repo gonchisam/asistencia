@@ -18,10 +18,10 @@
                     </svg>
                 </a>
 
-                {{-- Título Principal --}}
-                <h2 class="text-3xl font-extrabold text-gray-900">
-                    <span class="text-blue-600">AULAS</span>
-                </h2>
+                {{-- Título Destacado --}}
+                        <h1 class="text-3xl font-extrabold text-gray-900">
+                            <span class="text-blue-600">Gestión de</span> Aulas
+                        </h1>
             </div>
             
             {{-- Contenedor Derecho: Botón Crear Nueva Aula (Movido aquí) --}}

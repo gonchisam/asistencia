@@ -130,7 +130,7 @@
                                                         {{ $isFirstAno ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}"
                                                    data-carrera="{{ Str::slug($carrera) }}"
                                                    data-ano="{{ $ano }}">
-                                                     {{ $ano }}° Año
+                                                     {{ $ano }}
                                                 </a>
                                             @endforeach
                                         </nav>
@@ -165,7 +165,7 @@
                                                            data-carrera="{{ Str::slug($carrera) }}"
                                                            data-ano="{{ $ano }}"
                                                            data-paralelo="{{ $paralelo }}">
-                                                             Paralelo {{ $paralelo }}
+                                                            {{ $paralelo }}
                                                         </a>
                                                     @endforeach
                                                 </nav>
@@ -226,10 +226,7 @@
                     @endif
                     
                     {{-- Paginación (Se mantiene, pero se debe asegurar que funcione correctamente con la paginación de Laravel) --}}
-                    <div class="mt-6">
-                        {{-- Asegúrate que $cursos es un objeto paginado de Laravel (ej: $cursos = Curso::paginate(10);) --}}
-                        {{ $cursos->links() }}
-                    </div>
+                    
 
                 </div>
             </div>
