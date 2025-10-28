@@ -4,14 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Asistencia;
 use App\Models\Estudiante;
+use App\Models\Aula;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
-use App\Services\HorarioService; // <-- ¡NUEVO!
+use App\Services\HorarioService;
 
 class AsistenciaController extends Controller
 {
-    // --- ¡NUEVO! Inyección del servicio ---
     protected $horarioService;
 
     public function __construct(HorarioService $horarioService)
@@ -20,60 +20,112 @@ class AsistenciaController extends Controller
     }
 
     /**
-     * --- ¡MÉTODO MODIFICADO! ---
-     * Almacena un registro de asistencia desde el RFID (Arduino).
-     * Esta ruta es la de 'POST /asistencia'
+     * ENDPOINT PRINCIPAL PARA ARDUINO/RFID - OPCIÓN B (CÓDIGO DE AULA)
+     * Ruta: POST /api/asistencia
+     * 
+     * El Arduino debe enviar JSON:
+     * {
+     *   "uid": "A1B2C3D4",
+     *   "accion": "ENTRADA",
+     *   "modo": "ONLINE",
+     *   "aula_codigo": "AULA-101"
+     * }
      */
     public function store(Request $request)
     {
-        // 1. Validar que el RFID envió 'uid' y 'aula_id'
-        $data = $request->validate([
-            'uid' => 'required|string|max:255',
-            'aula_id' => 'required|integer|exists:aulas,id', // Asumo que el RFID sabe su ID de aula
-        ]);
+        Log::info('📡 Petición RFID recibida:', $request->all());
 
-        // Buscar el estudiante según el UID
-        $estudiante = Estudiante::where('uid', $data['uid'])->first();
-
-        // 2. Validar si el estudiante existe
-        if (!$estudiante) {
-            Log::warning("Asistencia RFID denegada (UID No Encontrado): {$data['uid']}");
-            // Esta respuesta JSON es para el Arduino
+        // 1. VALIDAR DATOS DE ENTRADA
+        try {
+            $data = $request->validate([
+                'uid' => 'required|string|max:255',
+                'accion' => 'required|string|in:ENTRADA,SALIDA',
+                'modo' => 'required|string|max:255',
+                // ✅ CAMBIO CLAVE: Aceptar código (string) en lugar de ID (integer)
+                'aula_codigo' => 'nullable|string|max:20',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('❌ Validación fallida RFID:', $e->errors());
             return response()->json([
                 'success' => false,
-                'message' => 'Estudiante NO ENCONTRADO'
+                'message' => 'Datos inválidos: ' . json_encode($e->errors())
+            ], 400);
+        }
+
+        // 2. BUSCAR ESTUDIANTE
+        $estudiante = Estudiante::where('uid', $data['uid'])->first();
+
+        if (!$estudiante) {
+            Log::warning("⚠️ UID no encontrado: {$data['uid']}");
+            return response()->json([
+                'success' => false,
+                'message' => 'UID NO ENCONTRADO'
             ], 404);
         }
 
-        // 3. Validar estado del estudiante
+        // 3. VALIDAR ESTADO ACTIVO
         if (!$estudiante->estado) {
-            Log::warning("Asistencia RFID denegada (Cuenta Inactiva): UID {$data['uid']}");
-            // Esta respuesta JSON es para el Arduino
+            Log::warning("⚠️ Cuenta inactiva: UID {$data['uid']}");
             return response()->json([
                 'success' => false,
-                'message' => 'ESTUDIANTE INACTIVO'
+                'message' => 'CUENTA INACTIVA'
             ], 403);
         }
+
+        // 4. ✅ BUSCAR AULA POR CÓDIGO (NO POR ID)
+        $aulaId = null;
+        $aulaNombre = 'Sin aula';
         
-        $aulaId = $data['aula_id'];
-
-        // 4. ¡NUEVA LÓGICA! Verificar si puede marcar (¡Aquí SÍ pasamos el $aulaId!)
-        $estado = $this->horarioService->verificarEstadoAsistencia($estudiante->id, $aulaId);
-
-        if ($estado['puede_marcar'] === false) {
-            Log::warning("Asistencia RFID denegada (Fuera de Horario/Aula): UID {$data['uid']}, AulaID {$aulaId}, Msj: {$estado['mensaje']}");
-            // El Arduino debe estar programado para leer este JSON y mostrar el 'message'
-            return response()->json([
-                'success' => false,
-                'message' => $estado['mensaje'] // Ej: "No tienes clase en ESTA AULA..."
-            ], 403); // 403 Forbidden
+        if (!empty($data['aula_codigo'])) {
+            $aulaCodigo = strtoupper(trim($data['aula_codigo']));
+            
+            // Buscar el aula por su código
+            $aula = Aula::where('codigo', $aulaCodigo)->first();
+            
+            if (!$aula) {
+                Log::error("❌ Código de Aula '{$aulaCodigo}' no existe en la base de datos");
+                return response()->json([
+                    'success' => false,
+                    'message' => 'CODIGO AULA INVALIDO'
+                ], 400);
+            }
+            
+            $aulaId = $aula->id;
+            $aulaNombre = $aula->nombre;
+            
+            Log::info("✅ Aula validada por código: {$aulaCodigo} -> ID {$aulaId} ({$aulaNombre})");
+        } else {
+            Log::warning("⚠️ No se recibió código de aula, se procederá sin validación específica");
         }
 
-        // 5. Si PUDO marcar, obtenemos el periodo_id
-        $periodoId = $estado['periodo_id'];
-        $now = Carbon::now();
+        // 5. VERIFICAR HORARIO Y PERMISOS
+        $estado = $this->horarioService->verificarEstadoAsistencia(
+            $estudiante->id, 
+            $aulaId // Ahora es el ID obtenido del código
+        );
 
-        // 6. Verificar si ya marcó ENTRADA para este periodo hoy
+        if (!$estado['puede_marcar']) {
+            // Mensajes amigables para el LCD
+            $mensajesAmigables = [
+                'FUERA_DE_TOLERANCIA' => 'FUERA DE HORARIO',
+                'SIN_CLASE' => 'SIN CLASE AHORA',
+                'SIN_CLASE_EN_AULA' => 'AULA INCORRECTA'
+            ];
+            
+            $mensaje = $mensajesAmigables[$estado['mensaje']] ?? 'NO PERMITIDO';
+            
+            Log::warning("⚠️ Asistencia denegada: UID {$data['uid']}, Aula {$aulaNombre}, Razón: {$mensaje}");
+            
+            return response()->json([
+                'success' => false,
+                'message' => $mensaje
+            ], 403);
+        }
+
+        // 6. VERIFICAR DUPLICADOS
+        $now = Carbon::now();
+        $periodoId = $estado['periodo_id'];
+
         $yaMarco = Asistencia::where('uid', $estudiante->uid)
             ->where('periodo_id', $periodoId)
             ->where('accion', 'ENTRADA')
@@ -81,87 +133,48 @@ class AsistenciaController extends Controller
             ->exists();
 
         if ($yaMarco) {
-            Log::warning("Asistencia RFID duplicada: UID {$data['uid']}, PeriodoID {$periodoId}");
+            Log::warning("⚠️ Asistencia duplicada: UID {$data['uid']}, Periodo {$periodoId}");
             return response()->json([
                 'success' => false,
-                'message' => 'Ya registraste asistencia.'
-            ], 409); // 409 Conflict
+                'message' => 'YA REGISTRADO HOY'
+            ], 409);
         }
 
-        // 7. Registrar la asistencia (¡Ahora con periodo_id!)
+        // 7. CALCULAR ESTADO DE LLEGADA
+        $estadoLlegada = $this->calcularEstadoLlegada($estado['periodo_id'], $now);
+
+        // 8. REGISTRAR ASISTENCIA
         $asistencia = Asistencia::create([
             'uid' => $estudiante->uid,
-            'periodo_id' => $periodoId, // <-- ¡NUEVO!
             'nombre' => $estudiante->nombreCompleto,
-            'accion' => 'ENTRADA', // <-- Siempre ENTRADA
-            'modo' => 'RFID_AULA_' . $aulaId, // Modo dinámico
-            'fecha_hora' => $now
+            'accion' => $data['accion'],
+            'modo' => $data['modo'],
+            'fecha_hora' => $now,
+            'curso_id' => $estado['curso_id'],
+            'periodo_id' => $periodoId,
+            'estado_llegada' => $estadoLlegada,
         ]);
 
-        Log::info("Asistencia RFID registrada: UID {$data['uid']}, PeriodoID {$periodoId}, AulaID {$aulaId}");
+        $aulaInfo = $aulaId ? " - Aula: {$aulaNombre} (Código: {$data['aula_codigo']})" : " - Sin aula específica";
+        Log::info("✅ Asistencia RFID registrada: {$estudiante->nombreCompleto}, Periodo: {$periodoId}, Estado: {$estadoLlegada}{$aulaInfo}");
 
-        // Respuesta exitosa para el Arduino
         return response()->json([
             'success' => true,
-            'message' => 'Asistencia registrada.',
+            'message' => 'ASISTENCIA OK',
             'estudiante' => $estudiante->nombreCompleto,
+            'estado_llegada' => $estadoLlegada,
+            'aula' => $aulaNombre,
             'data' => $asistencia
         ], 201);
     }
-    
-    
-    // --- MÉTODOS SIN MODIFICAR (LOS DEJAMOS COMO ESTABAN) ---
-    // (Aunque 'registrarAsistenciaRfid' ya no se usa, lo dejamos por si acaso)
-    
-    /**
-     * Endpoint para registrar asistencia desde el Arduino (RFID).
-     * Recibe el UID (código RFID) directamente.
-     * --- ESTE MÉTODO ES PARTE DE TU LÓGICA ANTIGUA ---
-     */
-    public function registrarAsistenciaRfid(Request $request)
-    {
-        Log::info('Intento de asistencia RFID (ANTIGUO) recibido:', $request->all());
-
-        $data = $request->validate([
-            'uid' => 'required|string|max:50'
-        ]);
-        $uid = $data['uid'];
-        $estudiante = Estudiante::where('uid', $uid)->first();
-        if (!$estudiante) {
-            Log::warning("Asistencia RFID (ANTIGUO) denegada (UID No Encontrado): {$uid}");
-            return response()->json(['success' => false, 'message' => 'Estudiante NO ENCONTRADO'], 404);
-        }
-        if (!$estudiante->estado) {
-            Log::warning("Asistencia RFID (ANTIGUO) denegada (Cuenta Inactiva): UID {$uid}");
-            return response()->json(['success' => false, 'message' => 'ESTUDIANTE INACTIVO'], 403);
-        }
-        $ultimaAsistencia = Asistencia::where('uid', $uid)->orderBy('fecha_hora', 'desc')->first();
-        $accion = 'ENTRADA'; 
-        if ($ultimaAsistencia && $ultimaAsistencia->accion === 'ENTRADA') {
-            $accion = 'SALIDA';
-        }
-        Asistencia::create([
-            'uid' => $estudiante->uid,
-            'nombre' => $estudiante->nombreCompleto ?? $estudiante->nombre,
-            'accion' => $accion,
-            'modo' => 'RFID',
-            'fecha_hora' => now()
-        ]);
-        Log::info("Asistencia RFID (ANTIGUO) registrada: UID {$uid}, Accion: {$accion}");
-        return response()->json([
-            'success' => true,
-            'message' => "Asistencia Registrada ({$accion})",
-            'estudiante' => $estudiante->nombreCompleto ?? $estudiante->nombre
-        ], 201);
-    }
 
     /**
-     * Almacena múltiples registros de asistencia enviados en lote (usado para el modo OFFLINE_SYNC).
-     * --- ESTE MÉTODO QUEDA IGUAL, PERO NO FUNCIONARÁ CON LA NUEVA LÓGICA DE PERIODOS ---
-     * --- Habría que adaptarlo luego si se necesita la sincronización offline ---
+     * ENDPOINT PARA SINCRONIZACIÓN OFFLINE (LOTE)
      */
     public function storeBatch(Request $request)
     {
+        Log::info('📦 Sincronización en lote recibida');
+
         $validationRules = [
             '*.uid' => 'required|string|max:255',
             '*.accion' => 'required|string|in:ENTRADA,SALIDA',
@@ -169,62 +182,105 @@ class AsistenciaController extends Controller
             '*.fecha' => 'required|date_format:d/m/Y',
             '*.hora' => 'required|date_format:H:i:s',
         ];
-        $registros = $request->validate($validationRules);
-        // ... (Tu lógica de storeBatch sigue aquí)
-        // ...
+
+        try {
+            $registros = $request->validate($validationRules);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Datos de lote inválidos',
+                'errors' => $e->errors()
+            ], 400);
+        }
+
         $storedCount = 0;
         $failedRecords = [];
 
         foreach ($registros as $registro) {
             try {
                 $estudiante = Estudiante::where('uid', $registro['uid'])->first();
+
                 if (!$estudiante) {
-                    $failedRecords[] = ['record' => $registro, 'error' => 'Estudiante NO ENCONTRADO'];
+                    $failedRecords[] = [
+                        'record' => $registro, 
+                        'error' => 'UID no encontrado'
+                    ];
                     continue;
                 }
+
                 if (!$estudiante->estado) {
-                    $failedRecords[] = ['record' => $registro, 'error' => 'ESTUDIANTE INACTIVO'];
+                    $failedRecords[] = [
+                        'record' => $registro, 
+                        'error' => 'Cuenta inactiva'
+                    ];
                     continue;
                 }
+
                 $fecha_hora_str = $registro['fecha'] . ' ' . $registro['hora'];
                 $fecha_hora = Carbon::createFromFormat('d/m/Y H:i:s', $fecha_hora_str);
-                
-                // --- NOTA: Esta inserción fallará si 'periodo_id' es 'NOT NULL' en tu BD
-                // --- Por eso lo pusimos como 'nullable' en el Paso 1
+
                 Asistencia::create([
                     'uid' => $registro['uid'],
-                    'nombre' => $estudiante->nombreCompleto ?? $estudiante->nombre,
+                    'nombre' => $estudiante->nombreCompleto,
                     'accion' => $registro['accion'],
                     'modo' => $registro['modo'],
                     'fecha_hora' => $fecha_hora,
-                    // 'periodo_id' quedará NULL
+                    'periodo_id' => null,
+                    'curso_id' => null,
+                    'estado_llegada' => null,
                 ]);
+
                 $storedCount++;
+
             } catch (\Exception $e) {
-                Log::error("Error al almacenar asistencia en lote para UID {$registro['uid']}: " . $e->getMessage());
-                $failedRecords[] = ['record' => $registro, 'error' => $e->getMessage()];
+                Log::error("Error en lote para UID {$registro['uid']}: {$e->getMessage()}");
+                $failedRecords[] = [
+                    'record' => $registro, 
+                    'error' => $e->getMessage()
+                ];
             }
         }
-        // ... (El resto de tu lógica de respuesta)
+
         if ($storedCount > 0) {
-            if (empty($failedRecords)) {
-                return response()->json(['success' => true, 'message' => "{$storedCount} registros procesados exitosamente."], 200);
-            } else {
-                return response()->json(['success' => true, 'message' => "{$storedCount} registros procesados. " . count($failedRecords) . " registros fallaron.", 'failed_records' => $failedRecords], 200);
+            $message = "{$storedCount} registros sincronizados.";
+            if (!empty($failedRecords)) {
+                $message .= " " . count($failedRecords) . " fallaron.";
             }
-        } else {
-            return response()->json(['success' => false, 'message' => 'Ningún registro pudo ser procesado.', 'failed_records' => $failedRecords], 400);
+            
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'failed_records' => $failedRecords
+            ], 200);
         }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Ningún registro pudo ser procesado',
+            'failed_records' => $failedRecords
+        ], 400);
     }
 
-    private function getNombreEstudiante($uid)
+    /**
+     * HELPER: Calcula estado de llegada
+     */
+    private function calcularEstadoLlegada($periodoId, Carbon $horaLlegada)
     {
-        $estudiante = Estudiante::where('uid', $uid)->first();
-        if ($estudiante) {
-            return $estudiante->nombreCompleto ?? $estudiante->nombre;
+        $periodo = \App\Models\Periodo::find($periodoId);
+        
+        if (!$periodo) {
+            return 'desconocido';
+        }
+
+        $horaInicio = Carbon::parse($periodo->hora_inicio);
+        $horaFinTolerancia = $horaInicio->copy()->addMinutes($periodo->tolerancia_ingreso_minutos);
+
+        if ($horaLlegada <= $horaInicio) {
+            return 'a_tiempo';
+        } elseif ($horaLlegada <= $horaFinTolerancia) {
+            return 'tarde';
         } else {
-            Log::warning("UID desconocido intentando registrar asistencia: {$uid}");
-            return 'Desconocido';
+            return 'falta';
         }
     }
 }

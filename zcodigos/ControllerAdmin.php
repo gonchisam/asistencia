@@ -39,6 +39,10 @@ String wifi_ssid = "";
 String wifi_password = "";
 String server_url = "";
 
+// Variables dinámicas para RTC
+String current_rtc_date = "";
+String current_rtc_time = "";
+
 // === OBJETOS PRINCIPALES ===
 MFRC522 rfid(SS_RFID, RST_PIN);
 RTC_DS3231 rtc;
@@ -51,6 +55,7 @@ Preferences preferences;
 struct Estudiante {
     String uid;
     String nombre;
+    int estado; // <-- AÑADIR ESTA LÍNEA
 };
 
 struct CardStatus {
@@ -60,7 +65,7 @@ struct CardStatus {
 
 // === CONSTANTES ===
 #define MAX_STUDENTS 100
-#define CARD_READ_DELAY 500
+#define CARD_READ_DELAY 200
 #define DATE_UPDATE_INTERVAL 1000
 #define LCD_MESSAGE_DURATION 1000
 #define SYNC_INTERVAL 30000
@@ -70,6 +75,7 @@ struct CardStatus {
 #define ERROR_DISPLAY_CYCLE_INTERVAL 2000
 #define CONFIG_MODE_TIMEOUT 300000  // 5 minutos en modo config
 #define RESET_BUTTON_HOLD_TIME 5000  // 5 segundos para resetear configuración
+
 
 // === VARIABLES GLOBALES ===
 Estudiante estudiantes[MAX_STUDENTS];
@@ -87,6 +93,9 @@ unsigned long lastStudentListSync = 0;
 unsigned long configModeStartTime = 0;
 unsigned long lastButtonPress = 0;
 unsigned long buttonPressStartTime = 0;
+unsigned long activityLedOnTime = 0;
+const int ACTIVITY_LED_DURATION = 100; // 100 ms de duración del pulso
+bool activityLedPulsed = false; // Bandera para saber si se acaba de encender
 // Para controlar el tiempo de presión del botón
 
 // Control de sistema
@@ -140,10 +149,11 @@ void detenerLecturaRFID();
 void procesarAsistencia(String uidLeido);
 int buscarEstudiante(String uid, String &nombreEncontrado);
 bool enviarAsistenciaRapido(String uid, String accion, String modo);
-bool enviarUidDesconocido(String uid); // Nueva función para UID desconocidos
 void sincronizarPendientes();
 void sincronizarListaEstudiantes();
 void cargarListaEstudiantesDesdeSD();
+bool enviarUidDesconocido(String uid); // Declaración de la nueva función
+
 // === NUEVAS FUNCIONES PARA CONFIGURACIÓN ===
 void cargarConfiguracion();
 void guardarConfiguracion();
@@ -158,12 +168,17 @@ void handleNotFound();
 String escanearRedes();
 String generarPaginaConfig();
 void resetearConfiguracionWiFi();
-bool configurarRTCManual(String dateStr, String timeStr); // <--- DECLARACIÓN AÑADIDA
+void configurarRTCManual(String fechaStr, String horaStr); // Nueva función para configurar RTC
+// Nueva función para resetear configuración
+
+// Variable global para almacenar el ID del aula
+String aulaCodigo = "AULA-101";
 
 // === FUNCIONES PRINCIPALES ===
 void setup() {
     Serial.begin(115200);
     delay(200);
+    
     // Inicializar Preferences
     preferences.begin("esp32_config", false);
     
@@ -208,18 +223,29 @@ void cargarConfiguracion() {
     wifi_password = preferences.getString("wifi_pass", "");
     server_url = preferences.getString("server_url", "http://192.168.1.100:8000");
     
-    Serial.println("Configuración cargada:");
+    // ✅ CARGAR CÓDIGO DE AULA (String en lugar de int)
+    aulaCodigo = preferences.getString("aula_codigo", "");
+    
+    // Si no está configurado, asignar valor por defecto
+    if (aulaCodigo.length() == 0) {
+        aulaCodigo = "AULA-101"; // Valor por defecto
+        preferences.putString("aula_codigo", aulaCodigo);
+        Serial.println("⚠️ Código de Aula no configurado, usando: " + aulaCodigo);
+    }
+    
+    Serial.println("=== Configuración Cargada ===");
     Serial.println("SSID: " + wifi_ssid);
     Serial.println("Server URL: " + server_url);
+    Serial.println("Aula Código: " + aulaCodigo);
+    Serial.println("=============================");
 
     if (wifi_ssid.length() > 0) {
         conectarWiFi();
     } else {
-        Serial.println("No hay configuración WiFi. Iniciando modo configuración...");
+        Serial.println("⚠️ No hay configuración WiFi. Iniciando modo configuración...");
         iniciarModoConfiguracion();
     }
 }
-
 void guardarConfiguracion() {
     preferences.putString("wifi_ssid", wifi_ssid);
     preferences.putString("wifi_pass", wifi_password);
@@ -254,23 +280,31 @@ void resetearConfiguracionWiFi() {
 void iniciarModoConfiguracion() {
     configMode = true;
     configModeStartTime = millis();
+
+    // Obtener la hora actual para mostrarla en el formulario
+    DateTime now = rtc.now();
+    current_rtc_date = String(now.year()) + "-" + formatTwoDigits(now.month()) + "-" + formatTwoDigits(now.day());
+    current_rtc_time = formatTwoDigits(now.hour()) + ":" + formatTwoDigits(now.minute());
     
     // Configurar Access Point
     WiFi.mode(WIFI_AP);
     WiFi.softAP(ap_ssid, ap_password);
+
     // Esperar a que el AP se active
     delay(500);
+
     // Configurar DNS para portal cautivo - redirige TODAS las consultas DNS al ESP32
     dnsServer.start(53, "*", WiFi.softAPIP());
+
     // Configurar rutas del servidor web
     server.on("/", handleRoot);
     server.on("/save", HTTP_POST, handleSave);
     server.on("/scan", handleScan);
-    server.on("/generate_204", handleRoot);
-    // Android
+    server.on("/generate_204", handleRoot); // Android
     server.on("/fwlink", handleRoot);        // Microsoft
     server.on("/hotspot-detect.html", handleRoot); // Apple
     server.onNotFound(handleNotFound);
+
     server.begin();
     
     mostrarMensajeLCD("Modo Config", WiFi.softAPIP().toString(), 0);
@@ -293,6 +327,7 @@ void detenerModoConfiguracion() {
 
 void verificarBotonConfiguracion() {
     bool currentButtonState = (digitalRead(CONFIG_BUTTON_PIN) == LOW);
+
     // Detectar cuando se presiona el botón
     if (currentButtonState && !buttonPressed) {
         buttonPressed = true;
@@ -377,42 +412,99 @@ void handleRoot() {
     server.send(200, "text/html", generarPaginaConfig());
 }
 
-// --- FUNCIÓN handleSave CORREGIDA (INCLUYE RTC) ---
 void handleSave() {
-    // Verificar que se hayan recibido TODOS los parámetros (WiFi, Server y RTC)
-    if (server.hasArg("ssid") && server.hasArg("password") && server.hasArg("server") &&
+    if (server.hasArg("ssid") && server.hasArg("password") && 
+        server.hasArg("server") && server.hasArg("aula_codigo") &&
         server.hasArg("rtc_date") && server.hasArg("rtc_time")) {
-        
+
+        // 1. Configuración WiFi/Servidor
         wifi_ssid = server.arg("ssid");
         wifi_password = server.arg("password");
         server_url = server.arg("server");
         
-        String rtc_date_str = server.arg("rtc_date"); // Formato YYYY-MM-DD
-        String rtc_time_str = server.arg("rtc_time"); // Formato HH:MM
+        // ✅ LEER CÓDIGO DE AULA (String)
+        aulaCodigo = server.arg("aula_codigo");
+        aulaCodigo.trim(); // Eliminar espacios al inicio/final
+        aulaCodigo.toUpperCase(); // Convertir a mayúsculas
         
-        // Intentar configurar el RTC
-        if (configurarRTCManual(rtc_date_str, rtc_time_str)) {
-            mostrarMensajeLCD("RTC Configuracion", "EXITOSA!", 2000);
-        } else {
-            // Si falla, aún se guarda la config WiFi pero se notifica el error
-            mostrarMensajeLCD("RTC Configuracion", "FALLIDA! (Verificar)", 3000);
+        // Validar que no esté vacío
+        if (aulaCodigo.length() == 0) {
+            aulaCodigo = "AULA-101"; // Valor por defecto
+            Serial.println("⚠️ Código de aula vacío, usando: " + aulaCodigo);
         }
         
-        guardarConfiguracion();
+        // Validar formato (opcional): debe tener entre 3 y 20 caracteres
+        if (aulaCodigo.length() < 3 || aulaCodigo.length() > 20) {
+            String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body>";
+            html += "<h1 style='color:red;'>❌ Error: Código de Aula Inválido</h1>";
+            html += "<p>El código debe tener entre 3 y 20 caracteres.</p>";
+            html += "<p>Recibido: <strong>" + aulaCodigo + "</strong> (" + String(aulaCodigo.length()) + " caracteres)</p>";
+            html += "<br><a href='/'>← Volver</a>";
+            html += "</body></html>";
+            server.send(400, "text/html", html);
+            return;
+        }
         
-        String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Configuración Guardada</title></head>";
-        html += "<body><h1>Configuración Guardada</h1>";
-        html += "<p>SSID: " + wifi_ssid + "</p>";
-        html += "<p>Servidor: " + server_url + "</p>";
-        html += "<p>El dispositivo se reiniciará en 5 segundos...</p>";
-        html += "<script>setTimeout(function(){window.location.href='/';}, 5000);</script></body></html>";
+        // 2. Guardar en Preferences
+        preferences.putString("wifi_ssid", wifi_ssid);
+        preferences.putString("wifi_pass", wifi_password);
+        preferences.putString("server_url", server_url);
+        preferences.putString("aula_codigo", aulaCodigo);  // ✅ GUARDAR CÓDIGO
+        
+        Serial.println("✅ Configuración guardada:");
+        Serial.println("   SSID: " + wifi_ssid);
+        Serial.println("   Servidor: " + server_url);
+        Serial.println("   Aula Código: " + aulaCodigo);
+
+        // 3. Configuración RTC
+        String rtc_date = server.arg("rtc_date");
+        String rtc_time = server.arg("rtc_time");
+        configurarRTCManual(rtc_date, rtc_time);
+        
+        // 4. Respuesta HTML
+        String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Configuración Guardada</title>";
+        html += "<style>body{font-family:sans-serif;max-width:500px;margin:50px auto;padding:20px;background:#f0f0f0;}";
+        html += ".success{background:#d4edda;border:1px solid #c3e6cb;padding:15px;border-radius:8px;margin:20px 0;}";
+        html += "h1{color:#155724;} .code{background:#f8f9fa;padding:5px 10px;border-radius:4px;font-family:monospace;}</style></head><body>";
+        html += "<div class='success'>";
+        html += "<h1>✅ Configuración Guardada</h1>";
+        html += "<p><strong>SSID:</strong> " + wifi_ssid + "</p>";
+        html += "<p><strong>Servidor:</strong> " + server_url + "</p>";
+        html += "<p><strong>Aula Código:</strong> <span class='code'>" + aulaCodigo + "</span></p>";
+        html += "<p><strong>RTC:</strong> " + rtc_date + " " + rtc_time + "</p>";
+        html += "<hr>";
+        html += "<p>🔄 El dispositivo se reiniciará en <span id='countdown'>5</span> segundos...</p>";
+        html += "</div>";
+        html += "<script>";
+        html += "let count = 5;";
+        html += "setInterval(() => {";
+        html += "  count--;";
+        html += "  document.getElementById('countdown').textContent = count;";
+        html += "  if(count <= 0) window.location.href='/';";
+        html += "}, 1000);";
+        html += "</script>";
+        html += "</body></html>";
         
         server.send(200, "text/html", html);
         
         delay(1000);
         shouldRestart = true;
     } else {
-        server.send(400, "text/html", "Faltan parámetros requeridos (WiFi/Server/RTC)");
+        // ❌ Faltan parámetros
+        String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Error</title></head><body>";
+        html += "<h1 style='color:red;'>❌ Error: Faltan parámetros requeridos</h1>";
+        html += "<p>Parámetros recibidos:</p><ul>";
+        html += "<li>SSID: " + String(server.hasArg("ssid") ? "✅" : "❌") + "</li>";
+        html += "<li>Password: " + String(server.hasArg("password") ? "✅" : "❌") + "</li>";
+        html += "<li>Servidor: " + String(server.hasArg("server") ? "✅" : "❌") + "</li>";
+        html += "<li>Código Aula: " + String(server.hasArg("aula_codigo") ? "✅" : "❌") + "</li>";
+        html += "<li>Fecha RTC: " + String(server.hasArg("rtc_date") ? "✅" : "❌") + "</li>";
+        html += "<li>Hora RTC: " + String(server.hasArg("rtc_time") ? "✅" : "❌") + "</li>";
+        html += "</ul>";
+        html += "<a href='/'>← Volver</a>";
+        html += "</body></html>";
+        
+        server.send(400, "text/html", html);
     }
 }
 
@@ -443,6 +535,7 @@ String escanearRedes() {
     
     StaticJsonDocument<2048> doc;
     JsonArray networks = doc.to<JsonArray>();
+
     for (int i = 0; i < n; i++) {
         JsonObject network = networks.createNestedObject();
         network["ssid"] = WiFi.SSID(i);
@@ -455,29 +548,35 @@ String escanearRedes() {
     return result;
 }
 
-// --- FUNCIÓN generarPaginaConfig MODIFICADA (INCLUYE RTC) ---
 String generarPaginaConfig() {
     String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>";
     html += "<title>Configuración ESP32 RFID</title>";
     html += "<script src='https://cdn.tailwindcss.com'></script>";
     html += "<style>";
-    html += "body { font-family: system-ui, sans-serif; background-color: #f3f4f6; }";
-    html += ".btn { display: block; width: 100%; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; text-align: center; }";
-    html += ".btn-primary { background-color: #4f46e5; color: white; }";
-    html += ".btn-primary:hover { background-color: #4338ca; }";
+    html += "body { font-family: system-ui, sans-serif; background: linear-gradient(to right, #e0e7ff, #f9fafb); }";
+    html += ".btn { display: inline-block; padding: 0.6rem 1rem; border-radius: 0.5rem; font-weight: 600; text-align: center; transition: all 0.2s; }";
+    html += ".btn-primary { background-color: #4f46e5; color: white; width: 100%; }";
+    html += ".btn-primary:hover { background-color: #4338ca; transform: scale(1.02); }";
     html += ".btn-scan { background-color: #0ea5e9; color: white; margin-bottom: 0.5rem; }";
-    html += ".btn-scan:hover { background-color: #0284c7; }";
-    html += ".input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; box-sizing: border-box; }";
-    html += ".input:focus { outline: none; border-color: #4f46e5; ring: 2px #4f46e5; }";
-    html += ".card { background: white; border-radius: 0.5rem; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; }";
-    html += ".alert { background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 1rem; margin-bottom: 1.5rem; }";
-    html += ".network-item { padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.375rem; margin-bottom: 0.5rem; cursor: pointer; }";
+    html += ".btn-scan:hover { background-color: #0284c7; transform: scale(1.02); }";
+    html += ".input { width: 100%; padding: 0.6rem 0.9rem; border: 1px solid #d1d5db; border-radius: 0.5rem; box-sizing: border-box; }";
+    html += ".input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(79,70,229,0.3); }";
+    html += ".card { background: white; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 6px 16px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }";
+    html += ".alert { background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; }";
+    html += ".info-box { background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }";
+    html += ".network-item { padding: 0.6rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 0.5rem; cursor: pointer; transition: background 0.2s; }";
     html += ".network-item:hover { background-color: #f3f4f6; }";
+    html += ".datetime-group { display: flex; gap: 0.5rem; }";
+    html += ".datetime-group .input { flex: 1; }";
+    html += ".password-wrapper { position: relative; }";
+    html += ".toggle-btn { position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 0.9rem; color: #6b7280; }";
+    html += ".code-display { font-family: 'Courier New', monospace; background: #f8f9fa; padding: 8px; border-radius: 4px; font-weight: bold; }";
     html += "</style></head>";
-    html += "<body class='p-4'>";
+    html += "<body class='min-h-screen flex items-center justify-center p-6'>";
     
-    html += "<div class='max-w-md mx-auto'>";
-    html += "<h1 class='text-2xl font-bold text-center mb-6 text-gray-800'>Configuración ESP32 RFID</h1>";
+    html += "<div class='w-full max-w-sm mx-auto'>";  
+    html += "<h1 class='text-2xl font-extrabold text-center mb-6 text-indigo-700 drop-shadow-sm'>⚙️ Configuración ESP32 RFID</h1>";
+
     // Información sobre reset
     html += "<div class='alert'>";
     html += "<h3 class='font-bold text-red-700'>Resetear Configuración WiFi</h3>";
@@ -487,57 +586,96 @@ String generarPaginaConfig() {
     html += "<div class='card'>";
     html += "<form method='POST' action='/save'>";
     
+    // --- 1. Configuración WiFi ---
+    html += "<h2 class='text-lg font-semibold mb-3 text-gray-700'>1. Configuración de Red</h2>";
     html += "<div class='mb-4'>";
     html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Red WiFi</label>";
-    html += "<button type='button' class='btn btn-scan' onclick='escanearRedes()'>Escanear Redes</button>";
-    html += "<input type='text' name='ssid' id='ssid' placeholder='Nombre de la red WiFi' class='input' required>";
+    html += "<button type='button' class='btn btn-scan w-auto px-4' onclick='escanearRedes()'>🔍 Escanear Redes</button>";
+    html += "<input type='text' name='ssid' id='ssid' placeholder='Nombre de la red WiFi' class='input mt-2' value='" + wifi_ssid + "' required>";
     html += "<div id='networks' class='mt-2'></div>";
     html += "</div>";
     
     html += "<div class='mb-4'>";
     html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Contraseña WiFi</label>";
-    html += "<input type='password' name='password' placeholder='Contraseña de la red WiFi' class='input' required>";
+    html += "<div class='password-wrapper'>";
+    html += "<input type='password' id='password' name='password' placeholder='Contraseña de la red WiFi' class='input' required>";
+    html += "<span class='toggle-btn' onclick='togglePassword()'>👁️</span>";
     html += "</div>";
-
-    // === CAMPOS RTC AÑADIDOS ===
-    html += "<h2 class='text-xl font-semibold mt-6 mb-3 text-gray-700'>Configuración de Fecha y Hora (RTC)</h2>";
-
-    html += "<div class='mb-4'>";
-    html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Fecha Actual</label>";
-    html += "<input type='date' name='rtc_date' id='rtc_date' class='input' required>";
     html += "</div>";
-
-    html += "<div class='mb-6'>";
-    html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Hora Actual</label>";
-    html += "<input type='time' name='rtc_time' id='rtc_time' class='input' required>";
-    html += "</div>";
-    // ===========================
     
-    html += "<div class='mb-6'>";
+    html += "<div class='mb-4'>";
     html += "<label class='block text-sm font-medium text-gray-700 mb-1'>URL del Servidor</label>";
     html += "<input type='text' name='server' placeholder='http://192.168.1.100:8000' value='" + server_url + "' class='input' required>";
     html += "</div>";
-    html += "<button type='submit' class='btn btn-primary'>Guardar Configuración</button>";
+
+    // ✅ CAMPO DE CÓDIGO DE AULA (TEXTO EN LUGAR DE NÚMERO)
+    html += "<div class='mb-6'>";
+    html += "<label class='block text-sm font-medium text-gray-700 mb-1'>🏫 Código del Aula</label>";
+    html += "<input type='text' name='aula_codigo' id='aula_codigo' ";
+    html += "placeholder='Ej: AULA-101, LAB-INFO, SALON-A' ";
+    html += "value='" + aulaCodigo + "' ";
+    html += "class='input' ";
+    html += "maxlength='20' ";
+    html += "pattern='[A-Za-z0-9\\-_]+' ";
+    html += "title='Solo letras, números, guiones y guiones bajos' ";
+    html += "required ";
+    html += "style='text-transform: uppercase;'>";
+    
+    // Información adicional sobre códigos
+    html += "<div class='info-box mt-2'>";
+    html += "<p class='text-xs text-blue-700'><strong>💡 Formato del código:</strong></p>";
+    html += "<ul class='text-xs text-blue-600 mt-1 ml-4 list-disc'>";
+    html += "<li>3 a 20 caracteres</li>";
+    html += "<li>Solo letras, números, guiones (-) y guiones bajos (_)</li>";
+    html += "<li>Se convertirá automáticamente a MAYÚSCULAS</li>";
+    html += "<li>Ejemplos: <code>AULA-101</code>, <code>LAB-INFO</code>, <code>SALON_A</code></li>";
+    html += "</ul>";
+    html += "</div>";
+    html += "</div>";
+
+    // --- 2. Configuración RTC ---
+    html += "<h2 class='text-lg font-semibold mb-3 text-gray-700'>2. Configuración de RTC (Reloj)</h2>";
+    html += "<div class='mb-6'>";
+    html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Fecha y Hora Actuales</label>";
+    html += "<div class='datetime-group'>";
+    html += "<input type='date' name='rtc_date' id='rtc_date' class='input' value='" + current_rtc_date + "' required>";
+    html += "<input type='time' name='rtc_time' id='rtc_time' class='input' value='" + current_rtc_time + "' step='1' required>";
+    html += "</div>";
+    html += "<p class='text-xs text-gray-500 mt-1'>Fecha y hora que se ajustarán en el módulo RTC.</p>";
+    html += "</div>";
+    
+    html += "<button type='submit' class='btn btn-primary'>💾 Guardar Configuración y Reiniciar</button>";
     html += "</form>";
     html += "</div>";
     
+    // Mostrar configuración actual
     html += "<div class='card text-center text-sm text-gray-600'>";
-    html += "<p class='font-medium'>Configuración actual</p>";
-    html += "<p>SSID: " + (wifi_ssid.length() > 0 ? wifi_ssid : "No configurado") + "</p>";
-    html += "<p>Servidor: " + server_url + "</p>";
+    html += "<p class='font-medium text-gray-800 mb-2'>📋 Configuración Actual</p>";
+    html += "<div style='text-align:left; background:#f9fafb; padding:10px; border-radius:8px;'>";
+    html += "<p><strong>SSID:</strong> " + (wifi_ssid.length() > 0 ? wifi_ssid : "No configurado") + "</p>";
+    html += "<p><strong>Servidor:</strong> " + server_url + "</p>";
+    html += "<p><strong>Aula:</strong> <span class='code-display'>" + aulaCodigo + "</span></p>";
+    html += "</div>";
     html += "</div>";
     
     html += "</div>";
     
+    // Scripts JavaScript
     html += "<script>";
+    
+    // Convertir a mayúsculas mientras escribe
+    html += "document.getElementById('aula_codigo').addEventListener('input', function(e) {";
+    html += "  e.target.value = e.target.value.toUpperCase();";
+    html += "});";
+    
     html += "function escanearRedes() {";
-    html += "  document.getElementById('networks').innerHTML = '<p class=\"text-center text-gray-500\">Escaneando...</p>';";
+    html += "  document.getElementById('networks').innerHTML = '<p class=\"text-center text-gray-500\">Escaneando...</p>';"; 
     html += "  fetch('/scan')";
     html += "    .then(response => response.json())";
     html += "    .then(data => {";
-    html += "      let html = '';";
+    html += "      let html = '';"; 
     html += "      data.forEach(network => {";
-    html += "        let security = network.secure ? '🔒' : '🔓';";
+    html += "        let security = network.secure ? '🔒' : '🔓';"; 
     html += "        let strength = '';";
     html += "        if(network.rssi > -50) strength = 'Excelente';";
     html += "        else if(network.rssi > -70) strength = 'Buena';";
@@ -545,15 +683,44 @@ String generarPaginaConfig() {
     html += "        else strength = 'Muy débil';";
     html += "        html += '<div class=\"network-item\" onclick=\"seleccionarRed(\\'' + network.ssid + '\\')\">' + network.ssid + ' ' + security + '<span class=\"text-xs text-gray-500 float-right\">' + strength + '</span></div>';";
     html += "      });";
-    html += "      document.getElementById('networks').innerHTML = html;";
+    html += "      document.getElementById('networks').innerHTML = html;"; 
     html += "    })";
     html += "    .catch(error => {";
-    html += "      document.getElementById('networks').innerHTML = '<p class=\"text-center text-red-500\">Error al escanear redes</p>';";
+    html += "      document.getElementById('networks').innerHTML = '<p class=\"text-center text-red-500\">Error al escanear redes</p>';"; 
     html += "    });";
     html += "}";
     html += "function seleccionarRed(ssid) {";
     html += "  document.getElementById('ssid').value = ssid;";
     html += "}";
+    html += "function togglePassword() {";
+    html += "  const passField = document.getElementById('password');";
+    html += "  if (passField.type === 'password') {";
+    html += "    passField.type = 'text';";
+    html += "  } else {";
+    html += "    passField.type = 'password';";
+    html += "  }";
+    html += "}";
+    html += "window.onload = function() {";
+    html += "  try {";
+    html += "    const now = new Date();";
+    html += "    const year = now.getFullYear();";
+    html += "    const month = String(now.getMonth() + 1).padStart(2, '0');";
+    html += "    const day = String(now.getDate()).padStart(2, '0');";
+    html += "    const hours = String(now.getHours()).padStart(2, '0');";
+    html += "    const minutes = String(now.getMinutes()).padStart(2, '0');";
+    html += "    const seconds = String(now.getSeconds()).padStart(2, '0');";
+    html += "    const rtcDateInput = document.getElementById('rtc_date');";
+    html += "    const rtcTimeInput = document.getElementById('rtc_time');";
+    html += "    if (rtcDateInput.value.startsWith('2000') || rtcDateInput.value === '') {";
+    html += "        rtcDateInput.value = `${year}-${month}-${day}`;";
+    html += "    }";
+    html += "    if (rtcTimeInput.value === '00:00' || rtcTimeInput.value === '') {";
+    html += "        rtcTimeInput.value = `${hours}:${minutes}:${seconds}`;";
+    html += "    }";
+    html += "  } catch (e) {";
+    html += "    console.error('Error al configurar fecha/hora del navegador:', e);";
+    html += "  }";
+    html += "};";
     html += "</script>";
     
     html += "</body></html>";
@@ -561,45 +728,55 @@ String generarPaginaConfig() {
     return html;
 }
 
-// === FUNCIÓN RTC MANUAL AÑADIDA ===
-/**
- * Configura la hora del módulo RTC a partir de strings en formato HTML.
- * @param dateStr String en formato "YYYY-MM-DD"
- * @param timeStr String en formato "HH:MM"
- * @return bool True si la configuración fue exitosa, False si falló.
- */
-bool configurarRTCManual(String dateStr, String timeStr) {
-    if (!rtcOK) {
-        Serial.println("Error: RTC no inicializado. No se puede configurar la hora.");
-        return false; 
+
+// NUEVA FUNCIÓN: Configura el RTC con la fecha y hora manual
+void configurarRTCManual(String fechaStr, String horaStr) {
+    // fechaStr: YYYY-MM-DD
+    // horaStr: HH:MM:SS (o HH:MM si el input es type="time")
+
+    if (fechaStr.length() < 10) {
+        Serial.println("Error: Formato de fecha inválido.");
+        return;
     }
 
-    // Parsear Fecha (YYYY-MM-DD)
-    int year = dateStr.substring(0, 4).toInt();
-    int month = dateStr.substring(5, 7).toInt();
-    int day = dateStr.substring(8, 10).toInt();
+    int year = fechaStr.substring(0, 4).toInt();
+    int month = fechaStr.substring(5, 7).toInt();
+    int day = fechaStr.substring(8, 10).toInt();
 
-    // Parsear Hora (HH:MM)
-    int hour = timeStr.substring(0, 2).toInt();
-    int minute = timeStr.substring(3, 5).toInt();
-    int second = 0; // Asumimos 0 segundos
+    int hour = 0;
+    int minute = 0;
+    int second = 0;
 
-    // Validar rangos básicos
-    if (year < 2024 || month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-        Serial.println("Error: Formato de fecha/hora Invalido.");
-        return false;
+    if (horaStr.length() >= 5) {
+        hour = horaStr.substring(0, 2).toInt();
+        minute = horaStr.substring(3, 5).toInt();
     }
-
-    // Crear objeto DateTime y configurar el RTC
+    if (horaStr.length() >= 8) {
+        second = horaStr.substring(6, 8).toInt();
+    }
+    
+    // Crear un objeto DateTime con los nuevos valores
     DateTime newTime(year, month, day, hour, minute, second);
+
+    // Ajustar el RTC
     rtc.adjust(newTime);
+    
+    Serial.print("RTC ajustado manualmente a: ");
+    Serial.print(newTime.year());
+    Serial.print("-");
+    Serial.print(newTime.month());
+    Serial.print("-");
+    Serial.print(newTime.day());
+    Serial.print(" ");
+    Serial.print(newTime.hour());
+    Serial.print(":");
+    Serial.print(newTime.minute());
+    Serial.print(":");
+    Serial.println(newTime.second());
 
-    Serial.print("RTC configurado manualmente a: ");
-    Serial.print(year); Serial.print("-"); Serial.print(month); Serial.print("-"); Serial.print(day); 
-    Serial.print(" "); Serial.print(hour); Serial.print(":"); Serial.println(minute);
-
-    return true;
+    mostrarMensajeLCD("RTC Ajustado", newTime.year() >= 2023 ? "OK" : "Error RTC", 2000);
 }
+
 
 // === FUNCIONES AUXILIARES (mantenidas igual) ===
 String formatTwoDigits(int number) {
@@ -621,7 +798,7 @@ void mostrarMensajeLCD(String linea1, String linea2, int duracion) {
     lcd.print(linea1);
     lcd.setCursor(0, 1);
     lcd.print(linea2);
-    lcdMessageDisplayTime = (duracion > 0) ? millis() + duracion : 0;
+    lcdMessageDisplayTime = (duracion > 0) ? millis() : 0;
 }
 
 void mostrarFechaEnLCD() {
@@ -678,6 +855,7 @@ void inicializarHardware() {
     // SPI
     SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN);
     SPI.setFrequency(4000000);
+
     // SD
     if (SD.begin(SS_SD)) {
         crearArchivosBasicos();
@@ -706,7 +884,7 @@ void crearArchivosBasicos() {
 
 // === PROCESAMIENTO PRINCIPAL ===
 void procesarMensajesLCD() {
-    if (lcdMessageDisplayTime > 0 && millis() > lcdMessageDisplayTime) {
+    if (lcdMessageDisplayTime > 0 && millis() - lcdMessageDisplayTime > LCD_MESSAGE_DURATION) {
         lcdMessageDisplayTime = 0;
         if (numActiveErrors > 0) {
             mostrarMensajeLCD(errorMessages[currentErrorIndex], "Verifica modulos");
@@ -747,8 +925,7 @@ void sincronizarDatosPeriodicamente() {
 }
 
 void procesarLecturaRFID() {
-    if (configMode) return;
-    // No procesar RFID en modo configuración
+    if (configMode) return; // No procesar RFID en modo configuración
     
     if (rfidOK && rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
         String uidStr = leerUID();
@@ -766,21 +943,26 @@ void procesarLecturaRFID() {
 }
 
 void actualizarInterfaz() {
-    if (lcdMessageDisplayTime == 0 && numActiveErrors == 0 && !configMode &&
-        millis() - lastDateUpdate > DATE_UPDATE_INTERVAL) {
+    if (lcdMessageDisplayTime == 0 && numActiveErrors == 0 && !configMode && millis() - lastDateUpdate > DATE_UPDATE_INTERVAL) {
         mostrarFechaEnLCD();
         lastDateUpdate = millis();
     }
     actualizarLEDs();
+    
+    // LOGICA DE APAGADO DE LED DE ACTIVIDAD (NO BLOQUEANTE)
+    if (activityLedPulsed && (millis() - activityLedOnTime >= ACTIVITY_LED_DURATION)) {
+        digitalWrite(LED_ACTIVITY, LOW);
+        activityLedPulsed = false; // Resetear bandera
+    }
 }
 
 // === CONTROL DE LEDS ===
 void actualizarLEDs() {
-    if (configMode || resetInProgress) return;
-    // Los LEDs se manejan diferente en modo config y reset
+    if (configMode || resetInProgress) return; // Los LEDs se manejan diferente en modo config y reset
     
     // LED estado (verde)
     digitalWrite(LED_STATUS, (sdCardOK && rtcOK && rfidOK) ? HIGH : LOW);
+
     // LED error (rojo parpadeante)
     if (numActiveErrors > 0) {
         if (millis() - lastErrorBlink > ERROR_BLINK_INTERVAL) {
@@ -794,9 +976,10 @@ void actualizarLEDs() {
 }
 
 void parpadearLEDActividad() {
+    // Encender el LED y registrar el tiempo
     digitalWrite(LED_ACTIVITY, HIGH);
-    delay(100);
-    digitalWrite(LED_ACTIVITY, LOW);
+    activityLedOnTime = millis();
+    activityLedPulsed = true; // Establecer bandera
 }
 
 // === VERIFICACIÓN SISTEMA ===
@@ -822,8 +1005,9 @@ void verificarEstadoSistema() {
     
     // Verificar RTC
     DateTime now = rtc.now();
-    rtcOK = (now.year() >= 2023);
+    rtcOK = (now.year() >= 2023); // Asumimos que si el año es menor a 2023, está desajustado/reseteado
     if (!rtcOK) errorMessages[numActiveErrors++] = "Error RTC";
+
     // Verificar RFID
     byte v = rfid.PCD_ReadRegister(rfid.VersionReg);
     rfidOK = (v != 0x00 && v != 0xFF);
@@ -988,45 +1172,60 @@ void detenerLecturaRFID() {
 void procesarAsistencia(String uidLeido) {
     String nombreEstudiante = "";
     int index = buscarEstudiante(uidLeido, nombreEstudiante);
+    
     if (index != -1) {
-        // Bloque para tarjetas conocidas (tu código original)
-        String lastAction = getLastAction(uidLeido);
-        String currentAction = (lastAction == "ENTRADA") ? "SALIDA" : "ENTRADA";
+        // ✅ ESTUDIANTE ENCONTRADO EN LISTA LOCAL
+        
+        // Verificar estado (0 = inactivo, 1 = activo)
+        if (estudiantes[index].estado == 0) {
+            Serial.println("⚠️ CUENTA INACTIVA: " + nombreEstudiante);
+            mostrarMensajeLCD("CUENTA INACTIVA", nombreEstudiante, LCD_MESSAGE_DURATION * 2);
+            return; // No continuar
+        }
 
-        updateLastAction(uidLeido, currentAction);
+        // ✅ NUEVA LÓGICA: SIEMPRE ENTRADA
+        // Ya no alternamos entre ENTRADA/SALIDA
+        String accion = "ENTRADA";
 
-        Serial.print("Tarjeta: ");
+        Serial.print("📋 Tarjeta: ");
         Serial.println(nombreEstudiante);
-        mostrarMensajeLCD("Bienvenido:", nombreEstudiante, LCD_MESSAGE_DURATION);
+        
+        // Mostrar en LCD antes de enviar
+        mostrarMensajeLCD("Procesando...", nombreEstudiante, 0);
 
         String fecha, hora;
         obtenerTimestamp(fecha, hora);
         String modo = (WiFi.status() == WL_CONNECTED) ? "ONLINE" : "OFFLINE";
 
         bool enviado = false;
+        
         if (WiFi.status() == WL_CONNECTED) {
-            enviado = enviarAsistenciaRapido(uidLeido, currentAction, modo);
+            // ✅ Enviar al servidor
+            enviado = enviarAsistenciaRapido(uidLeido, accion, modo);
+            
             if (!enviado) {
-                guardarPendienteEnSD(uidLeido, currentAction, fecha, hora);
+                // Si falló el envío, guardar en pendientes
+                guardarPendienteEnSD(uidLeido, accion, fecha, hora);
             }
         } else {
-            guardarPendienteEnSD(uidLeido, currentAction, fecha, hora);
+            // Sin WiFi, guardar directamente en pendientes
+            guardarPendienteEnSD(uidLeido, accion, fecha, hora);
+            mostrarMensajeLCD("Modo Offline", nombreEstudiante, LCD_MESSAGE_DURATION);
         }
 
-        guardarRegistroEnSD("/asistencia.txt", nombreEstudiante, uidLeido, currentAction, fecha, hora, modo);
+        // Guardar en log local de SD (siempre)
+        guardarRegistroEnSD("/asistencia.txt", nombreEstudiante, uidLeido, 
+                           accion, fecha, hora, modo);
+    
     } else {
-        // Bloque CORREGIDO para tarjetas desconocidas
-        Serial.println("Tarjeta desconocida: " + uidLeido);
-        mostrarMensajeLCD("UID Desconocido:", uidLeido, LCD_MESSAGE_DURATION);
+        // ❌ TARJETA DESCONOCIDA
+        Serial.println("⚠️ UID Desconocido: " + uidLeido);
+        mostrarMensajeLCD("UID Desconocido:", uidLeido, LCD_MESSAGE_DURATION * 2);
 
-        // Envía el UID desconocido a tu servidor web
+        // Enviar al servidor para que lo registre
         if (WiFi.status() == WL_CONNECTED) {
             enviarUidDesconocido(uidLeido);
         }
-
-        String fecha, hora;
-        obtenerTimestamp(fecha, hora);
-        guardarRegistroEnSD("/asistencia.txt", "Desconocido", uidLeido, "N/A", fecha, hora, "UNKNOWN");
     }
 }
 
@@ -1068,29 +1267,104 @@ int buscarEstudiante(String uid, String &nombreEncontrado) {
     return -1;
 }
 
-// === COMUNICACIÓN SERVIDOR ===
+// ===  SERVIDOR ===
 bool enviarAsistenciaRapido(String uid, String accion, String modo) {
-    if (WiFi.status() != WL_CONNECTED) return false;
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("❌ WiFi desconectado, no se puede enviar");
+        return false;
+    }
+    
     HTTPClient http;
     String serverPath = server_url + "/api/asistencia";
+    
+    Serial.println("🌐 Enviando a: " + serverPath);
+    
     http.begin(serverPath);
     http.addHeader("Content-Type", "application/json");
+    http.setTimeout(10000);
     
-    StaticJsonDocument<200> doc;
+    // ✅ JSON CON CÓDIGO DE AULA (String)
+    StaticJsonDocument<512> doc;
     doc["uid"] = uid;
     doc["accion"] = accion;
     doc["modo"] = modo;
+    doc["aula_codigo"] = aulaCodigo;  // ← String en lugar de int
     
     String jsonPayload;
     serializeJson(doc, jsonPayload);
     
+    Serial.println("📤 JSON enviado: " + jsonPayload);
+    
     int httpCode = http.POST(jsonPayload);
-    bool success = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED);
-    if (success) {
-        Serial.println("Enviado al servidor OK");
+    
+    Serial.print("📡 Código HTTP recibido: ");
+    Serial.println(httpCode);
+    
+    bool success = false;
+    
+    if (httpCode == HTTP_CODE_CREATED || httpCode == HTTP_CODE_OK) {
+        String response = http.getString();
+        Serial.println("✅ Respuesta del servidor: " + response);
+        
+        DynamicJsonDocument respDoc(512);
+        DeserializationError error = deserializeJson(respDoc, response);
+        
+        if (!error) {
+            bool serverSuccess = respDoc["success"] | false;
+            String mensaje = respDoc["message"] | "OK";
+            String nombreEstudiante = respDoc["estudiante"] | "Desconocido";
+            String estadoLlegada = respDoc["estado_llegada"] | "";
+            
+            if (serverSuccess) {
+                Serial.println("✅ ASISTENCIA REGISTRADA: " + nombreEstudiante);
+                
+                String lineaEstado = "Estado: " + estadoLlegada;
+                if (estadoLlegada == "a_tiempo") lineaEstado = "A TIEMPO";
+                else if (estadoLlegada == "tarde") lineaEstado = "TARDE";
+                
+                mostrarMensajeLCD(nombreEstudiante, lineaEstado, LCD_MESSAGE_DURATION);
+                success = true;
+            } else {
+                Serial.println("⚠️ Servidor rechazó: " + mensaje);
+                mostrarMensajeLCD("Asistencia", mensaje, LCD_MESSAGE_DURATION * 2);
+            }
+        }
+        
+    } else if (httpCode == 302) {
+        Serial.println("❌ ERROR 302: Redirección detectada");
+        Serial.println("   Verifica que /api/asistencia esté en routes/api.php");
+        mostrarMensajeLCD("Error 302", "Ver logs", LCD_MESSAGE_DURATION);
+        
+    } else if (httpCode == 403) {
+        String response = http.getString();
+        DynamicJsonDocument respDoc(256);
+        DeserializationError error = deserializeJson(respDoc, response);
+        
+        String mensaje = "ACCESO DENEGADO";
+        if (!error) {
+            mensaje = respDoc["message"] | "ACCESO DENEGADO";
+        }
+        
+        Serial.println("⚠️ Acceso denegado: " + mensaje);
+        mostrarMensajeLCD("Denegado:", mensaje, LCD_MESSAGE_DURATION * 2);
+        
+    } else if (httpCode == 404) {
+        Serial.println("⚠️ UID NO ENCONTRADO en base de datos");
+        mostrarMensajeLCD("UID Desconocido", "Ver admin", LCD_MESSAGE_DURATION * 2);
+        
+    } else if (httpCode == 409) {
+        Serial.println("⚠️ ASISTENCIA DUPLICADA");
+        mostrarMensajeLCD("Ya registrado", "HOY", LCD_MESSAGE_DURATION * 2);
+        
+    } else if (httpCode > 0) {
+        Serial.println("❌ Error HTTP: " + String(httpCode));
+        String response = http.getString();
+        Serial.println("   Respuesta: " + response);
+        mostrarMensajeLCD("Error HTTP", String(httpCode), LCD_MESSAGE_DURATION);
+        
     } else {
-        Serial.print("Error HTTP: ");
-        Serial.println(httpCode);
+        Serial.println("❌ Error de conexión: " + http.errorToString(httpCode));
+        mostrarMensajeLCD("Error conexión", "WiFi?", LCD_MESSAGE_DURATION);
     }
     
     http.end();
@@ -1114,8 +1388,7 @@ void sincronizarPendientes() {
     JsonArray batchArray = doc.to<JsonArray>();
     int registrosProcesados = 0;
     
-    archivoPendientes.readStringUntil('\n');
-    // Saltar encabezado
+    archivoPendientes.readStringUntil('\n'); // Saltar encabezado
     
     while (archivoPendientes.available()) {
         String linea = archivoPendientes.readStringUntil('\n');
@@ -1131,11 +1404,10 @@ void sincronizarPendientes() {
         
         if (found == 4) {
             String uid = linea.substring(0, pos[0]);
-            // Ignoramos 'nombre' en la carga para el servidor
             String accion = linea.substring(pos[1] + 1, pos[2]);
             String fecha = linea.substring(pos[2] + 1, pos[3]);
             String hora = linea.substring(pos[3] + 1);
-
+            
             JsonObject record = batchArray.add<JsonObject>();
             record["uid"] = uid;
             record["accion"] = accion;
@@ -1166,18 +1438,12 @@ void sincronizarPendientes() {
         } else {
             // Restaurar registros fallidos
             for (JsonVariant v : batchArray) {
-                // Reconstruir la línea con el nombre del estudiante (que se había ignorado)
-                String uid = v["uid"].as<String>();
-                String nombre = "";
-                buscarEstudiante(uid, nombre); // Buscar el nombre por UID
-                
-                String recordLine = uid + "," + nombre + "," + 
-                                    v["accion"].as<String>() + "," + 
-                                    v["fecha"].as<String>() + "," + 
-                                    v["hora"].as<String>();
+                String recordLine = v["uid"].as<String>() + ",," + 
+                                   v["accion"].as<String>() + "," + 
+                                   v["fecha"].as<String>() + "," + 
+                                   v["hora"].as<String>();
                 tempFile.println(recordLine);
             }
-            Serial.println("Sincronización fallida, registros restaurados a pendientes.");
         }
         http.end();
     }
@@ -1197,10 +1463,12 @@ void sincronizarListaEstudiantes() {
     
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
-        DynamicJsonDocument doc(4096);
+        DynamicJsonDocument doc(4096); // Quizás necesites aumentar esto si tienes muchos estudiantes
         DeserializationError error = deserializeJson(doc, payload);
         
         if (error) {
+            Serial.print("deserializeJson() falló: ");
+            Serial.println(error.c_str());
             http.end();
             return;
         }
@@ -1211,24 +1479,36 @@ void sincronizarListaEstudiantes() {
             http.end();
             return;
         }
-        studentsFile.println("UID,NOMBRE");
+        // NUEVO ENCABEZADO
+        studentsFile.println("UID,NOMBRE,ESTADO"); 
         
         JsonArray studentsArray = doc.as<JsonArray>();
         for (JsonObject student : studentsArray) {
             if (numEstudiantesActual < MAX_STUDENTS) {
-                estudiantes[numEstudiantesActual].uid = student["uid"].as<String>();
-                estudiantes[numEstudiantesActual].nombre = student["nombre"].as<String>();
-                studentsFile.println(estudiantes[numEstudiantesActual].uid + "," + 
-                                   estudiantes[numEstudiantesActual].nombre);
+                // Leer los 3 campos del JSON
+                String uid = student["uid"].as<String>();
+                String nombre = student["nombre"].as<String>();
+                // Leer 'estado' (booleano de JSON) y convertirlo a 0 o 1
+                int estado = student["estado"] ? 1 : 0; 
+
+                // Guardar en la memoria local
+                estudiantes[numEstudiantesActual].uid = uid;
+                estudiantes[numEstudiantesActual].nombre = nombre;
+                estudiantes[numEstudiantesActual].estado = estado; // <-- GUARDAR ESTADO
+
+                // Escribir los 3 campos en el archivo SD
+                studentsFile.println(uid + "," + nombre + "," + String(estado));
+
                 numEstudiantesActual++;
             } else break;
         }
         studentsFile.close();
         
-        Serial.print("Lista sincronizada. Total: ");
+        Serial.print("Lista sincronizada (con estado). Total: ");
         Serial.println(numEstudiantesActual);
         mostrarMensajeLCD("Lista Actualizada", "Estudiantes OK", 2000);
     } else {
+        // Si falla el GET, cargamos desde SD
         cargarListaEstudiantesDesdeSD();
     }
     http.end();
@@ -1244,8 +1524,7 @@ void cargarListaEstudiantesDesdeSD() {
     }
     
     numEstudiantesActual = 0;
-    studentsFile.readStringUntil('\n');
-    // Saltar encabezado
+    studentsFile.readStringUntil('\n'); // Saltar encabezado
     
     while (studentsFile.available()) {
         String line = studentsFile.readStringUntil('\n');
@@ -1253,16 +1532,22 @@ void cargarListaEstudiantesDesdeSD() {
         if (line.length() == 0) continue;
         
         if (numEstudiantesActual < MAX_STUDENTS) {
-            int commaIndex = line.indexOf(',');
-            if (commaIndex != -1) {
-                estudiantes[numEstudiantesActual].uid = line.substring(0, commaIndex);
-                estudiantes[numEstudiantesActual].nombre = line.substring(commaIndex + 1);
+            // Parsear la línea con 3 campos
+            int firstComma = line.indexOf(',');
+            int secondComma = line.indexOf(',', firstComma + 1);
+
+            if (firstComma != -1 && secondComma != -1) {
+                estudiantes[numEstudiantesActual].uid = line.substring(0, firstComma);
+                estudiantes[numEstudiantesActual].nombre = line.substring(firstComma + 1, secondComma);
+                // Convertir el estado (String "0" o "1") a int
+                estudiantes[numEstudiantesActual].estado = line.substring(secondComma + 1).toInt(); 
+                
                 numEstudiantesActual++;
             }
         } else break;
     }
     studentsFile.close();
     
-    Serial.print("Cargados desde SD: ");
+    Serial.print("Cargados desde SD (con estado): ");
     Serial.println(numEstudiantesActual);
 }
