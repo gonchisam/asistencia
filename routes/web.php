@@ -57,7 +57,11 @@ Route::middleware('auth')->group(function () {
 
     // --- RUTAS ADMINISTRATIVAS ---
     Route::prefix('admin')->name('admin.')->group(function () {
-        
+
+        Route::get('horarios/formulario', [App\Http\Controllers\HorariosPdfController::class, 'formulario'])
+            ->name('horarios.formulario');
+        Route::post('horarios/generar-pdf', [App\Http\Controllers\HorariosPdfController::class, 'generarPdf'])
+        ->name('horarios.generar-pdf');
         // === AULAS ===
         Route::resource('aulas', AulaController::class);
         

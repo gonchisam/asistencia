@@ -25,6 +25,14 @@
                         {{-- Contenedor de Botones (alineados a la derecha) --}}
                         {{-- Contenedor de Botones (alineados a la derecha) --}}
                         <div class="flex space-x-3">
+
+                            
+                            {{-- Botón de Crear Nuevo Curso: Estilo azul moderno --}}
+                            <a href="{{ route('admin.horarios.formulario') }}"
+                               class="inline-flex items-center px-4 py-2 bg-yellow-600 border border-transparent rounded-lg font-semibold text-sm text-white uppercase tracking-wider hover:bg-yellow-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ease-in-out duration-150 shadow-md hover:shadow-lg">
+                                <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                                Horarios
+                            </a>
                             {{-- Botón de Crear Nuevo Curso: Estilo azul moderno --}}
                             <a href="{{ route('admin.cursos.create') }}"
                                class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-semibold text-sm text-white uppercase tracking-wider hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ease-in-out duration-150 shadow-md hover:shadow-lg">

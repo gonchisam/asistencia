@@ -140,19 +140,20 @@
                     <table class="min-w-full bg-white">
                         <thead>
                             <tr class="bg-gray-50 text-gray-600 uppercase text-sm leading-normal">
-                                <th class="py-4 px-6 text-left font-semibold">Estudiante</th>
-                                <th class="py-4 px-6 text-left font-semibold">UID</th>
-                                <th class="py-4 px-6 text-left font-semibold">CI</th>
-                                <th class="py-4 px-6 text-left font-semibold">Carrera</th>
-                                <th class="py-4 px-6 text-left font-semibold">Año</th>
-                                <th class="py-4 px-6 text-left font-semibold">Fecha</th>
-                                <th class="py-4 px-6 text-left font-semibold">Acción</th>
-                                <th class="py-4 px-6 text-left font-semibold">Modo</th>
+                                <th class="py-4 px-6 text-center font-semibold">Fecha</th>
+                                <th class="py-4 px-6 text-center font-semibold">Estudiante</th>
+                                <th class="py-4 px-6 text-center font-semibold">IUD</th>
+                                <th class="py-4 px-6 text-center font-semibold">Ci</th>
+                                <th class="py-4 px-6 text-center font-semibold">Carrera</th>
+                                <th class="py-4 px-6 text-center font-semibold">Año</th>
+                                <th class="py-4 px-6 text-center font-semibold">Acción</th>
+                                <th class="py-4 px-6 text-center font-semibold">Modo</th>
                             </tr>
                         </thead>
                         <tbody class="text-gray-600 text-sm font-light">
                             @foreach($asistencias as $asistencia)
                                 <tr class="border-b border-gray-200 hover:bg-gray-50 transition duration-150 ease-in-out">
+                                    <td class="py-4 px-6 text-left">{{ $asistencia->created_at->format('d/m/Y H:i:s') }}</td>
                                     <td class="py-4 px-6 text-left whitespace-nowrap">
                                         <span class="font-medium">{{ $asistencia->estudiante->nombre }}</span>
                                     </td>
@@ -160,7 +161,7 @@
                                     <td class="py-4 px-6 text-left">{{ $asistencia->estudiante->ci }}</td>
                                     <td class="py-4 px-6 text-left">{{ $asistencia->estudiante->carrera }}</td>
                                     <td class="py-4 px-6 text-left">{{ $asistencia->estudiante->año }}</td>
-                                    <td class="py-4 px-6 text-left">{{ $asistencia->created_at->format('d/m/Y H:i:s') }}</td>
+                                    
                                     <td class="py-4 px-6 text-left">
                                         <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium 
                                             {{ $asistencia->accion === 'ENTRADA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
