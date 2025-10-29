@@ -1,9 +1,11 @@
 <?php
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AsistenciaController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\Api\MovilController;
+use App\Http\Controllers\Api\StudentLoginController;
 
 /*
 |--------------------------------------------------------------------------
@@ -18,6 +20,9 @@ use App\Http\Controllers\Api\MovilController;
 // ============================================
 // ⚠️ CRÍTICO: Estas rutas DEBEN estar SIN middleware de autenticación
 // porque el Arduino/ESP32 no maneja sesiones ni tokens Sanctum
+
+// --- NUEVO ENDPOINT SEMÁFORO (para App y Arduino online) ---
+Route::get('/asistencia/verificar', [AsistenciaController::class, 'verificarEstadoAsistencia']);
 
 // Endpoint principal para registrar asistencia desde RFID
 Route::post('/asistencia', [AsistenciaController::class, 'store']);
@@ -72,3 +77,14 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
         'user' => $request->user()
     ]);
 });
+
+// ============================================
+// 🔄 RUTAS ADICIONALES (para compatibilidad)
+// ============================================
+// Rutas de registro existentes (mantenemos para compatibilidad)
+Route::post('/asistencia/rfid', [AsistenciaController::class, 'storeRfid']);
+Route::get('/estudiantes/dispositivo/{device_id}', [AsistenciaController::class, 'getEstudiantesPorDispositivo']);
+Route::post('/asistencia/offline-sync', [AsistenciaController::class, 'syncOfflineAsistencias']);
+
+// Ruta protegida para marcar asistencia desde app móvil (alternativa)
+Route::middleware('auth:sanctum')->post('/movil/marcar-asistencia', [MovilController::class, 'marcarAsistencia']);
