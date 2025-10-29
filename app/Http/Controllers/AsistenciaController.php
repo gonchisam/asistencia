@@ -317,7 +317,9 @@ class AsistenciaController extends Controller
             ->with(['horarios' => function ($query) use ($diaSemana, $periodo) {
                 $query->where('dia_semana', $diaSemana)
                       ->where('periodo_id', $periodo->id)
-                      ->with('materia', 'aula');
+                      // --- INICIO DE LA CORRECCIÓN ---
+                      ->with('curso.materia', 'aula'); // Se usa 'curso.materia' en lugar de 'materia'
+                      // --- FIN DE LA CORRECCIÓN ---
             }])
             ->first();
 

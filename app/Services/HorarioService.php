@@ -162,7 +162,9 @@ class HorarioService
             ->with(['horarios' => function ($query) use ($diaSemanaActual, $periodoActual) {
                 $query->where('dia_semana', $diaSemanaActual)
                       ->where('periodo_id', $periodoActual->id)
-                      ->with('materia', 'aula');
+                      // --- INICIO DE LA CORRECCIÓN ---
+                      ->with('curso.materia', 'aula'); // Se usa 'curso.materia' en lugar de 'materia'
+                      // --- FIN DE LA CORRECCIÓN ---
             }])
             ->first();
 
@@ -193,9 +195,9 @@ class HorarioService
         // ✅ Usar 'uid' en lugar de 'student_id'
         // ✅ Usar 'fecha_hora' en lugar de 'fecha'
         return Asistencia::where('uid', $estudiante->uid)
-                         ->where('periodo_id', $periodo->id)
-                         ->whereDate('fecha_hora', $fecha)
-                         ->exists();
+                          ->where('periodo_id', $periodo->id)
+                          ->whereDate('fecha_hora', $fecha)
+                          ->exists();
     }
 
     /**
@@ -260,7 +262,7 @@ class HorarioService
         // ✅ Usar 'uid' en lugar de 'student_id'
         // ✅ Usar 'fecha_hora' en lugar de 'fecha'
         return Asistencia::where('uid', $estudiante->uid)
-                         ->whereDate('fecha_hora', $fecha)
-                         ->exists();
+                          ->whereDate('fecha_hora', $fecha)
+                          ->exists();
     }
 }
