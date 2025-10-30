@@ -57,6 +57,8 @@ Route::middleware('auth')->group(function () {
     // Estadísticas
     Route::get('/estadisticas', [EstadisticasController::class, 'index'])->name('estadisticas.index');
 
+    
+
     // --- RUTAS ADMINISTRATIVAS ---
     Route::prefix('admin')->name('admin.')->group(function () {
 

@@ -6,8 +6,10 @@ use App\Models\Asistencia;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Carbon\Carbon;
 
-class AsistenciasExport implements FromQuery, WithHeadings, WithMapping
+class AsistenciasExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize
 {
     protected $filters;
 
@@ -17,71 +19,93 @@ class AsistenciasExport implements FromQuery, WithHeadings, WithMapping
     }
 
     /**
-    * @return \Illuminate\Database\Query\Builder
+    * @return \Illuminate\Database\Eloquent\Builder
     */
     public function query()
     {
-        $query = Asistencia::query()->with('estudiante');
+        $query = Asistencia::query()->with('estudiante', 'curso.materia'); 
 
-        // Filtros de la tabla Asistencia
-        if (isset($this->filters['fecha_inicio']) && $this->filters['fecha_inicio']) {
-            $query->where('created_at', '>=', $this->filters['fecha_inicio'] . ' 00:00:00');
+        // Filtros directos en 'asistencias'
+        if (!empty($this->filters['fecha_desde'])) {
+            try {
+                $query->where('fecha_hora', '>=', Carbon::parse($this->filters['fecha_desde'])->startOfDay());
+            } catch (\Exception $e) {}
         }
-        if (isset($this->filters['fecha_fin']) && $this->filters['fecha_fin']) {
-            $query->where('created_at', '<=', $this->filters['fecha_fin'] . ' 23:59:59');
+        if (!empty($this->filters['fecha_fin'])) {
+            try {
+                $query->where('fecha_hora', '<=', Carbon::parse($this->filters['fecha_fin'])->endOfDay());
+            } catch (\Exception $e) {}
         }
-        if (isset($this->filters['accion']) && $this->filters['accion']) {
-            $query->where('accion', $this->filters['accion']);
-        }
-        if (isset($this->filters['modo']) && $this->filters['modo']) {
+        if (!empty($this->filters['modo'])) {
             $query->where('modo', $this->filters['modo']);
         }
+        if (!empty($this->filters['estado_llegada'])) {
+            $query->where('estado_llegada', $this->filters['estado_llegada']);
+        }
 
-        // Aplica los filtros a la relación 'estudiante' usando whereHas
+        // Filtros en 'estudiante'
         $query->whereHas('estudiante', function ($q) {
-            if (isset($this->filters['estudiante_id']) && $this->filters['estudiante_id']) {
-                $q->where('id', $this->filters['estudiante_id']);
-            }
-            if (isset($this->filters['carrera']) && $this->filters['carrera']) {
+            if (!empty($this->filters['carrera'])) {
                 $q->where('carrera', $this->filters['carrera']);
             }
-            // ¡CORRECCIÓN! Cambiar 'anio_estudio' a 'año'
-            if (isset($this->filters['anio_estudio']) && $this->filters['anio_estudio']) {
-                $q->where('año', $this->filters['anio_estudio']);
+            if (!empty($this->filters['año'])) { // Usar 'año'
+                $q->where('año', $this->filters['año']);
             }
-            if (isset($this->filters['ci']) && $this->filters['ci']) {
+            if (!empty($this->filters['ci'])) {
                 $q->where('ci', 'like', '%' . $this->filters['ci'] . '%');
             }
         });
 
-        return $query->orderBy('created_at', 'desc');
+        // Filtros en 'curso'
+        $query->whereHas('curso', function ($q) {
+             if (!empty($this->filters['materia_id'])) {
+                 $q->where('materia_id', $this->filters['materia_id']);
+             }
+             if (!empty($this->filters['paralelo'])) {
+                 $q->where('paralelo', $this->filters['paralelo']);
+             }
+        });
+
+        return $query->latest('fecha_hora');
     }
 
+    /**
+    * Define los encabezados de las columnas en el Excel.
+    */
     public function headings(): array
     {
+        // Coincidir con las 9 columnas de la vista PDF
         return [
-            'Nombre del Estudiante',
-            'CI',
-            'Carrera',
-            'Año de Estudio',
-            'UID',
-            'Acción',
-            'Modo',
             'Fecha y Hora',
+            'CI',
+            'Nombre Completo',
+            'Carrera',
+            'Año Cursado',
+            'Paralelo', // <-- NUEVA COLUMNA
+            'Materia',
+            'Modo',
+            'Estado Llegada',
         ];
     }
 
+    /**
+    * Mapea los datos de cada fila de la consulta a las columnas del Excel.
+    * @param mixed $asistencia Un modelo Asistencia con relaciones cargadas.
+    * @return array
+    */
     public function map($asistencia): array
     {
+        // Devolver los datos en el orden de los encabezados
         return [
-            $asistencia->estudiante->nombre,
-            $asistencia->estudiante->ci,
-            $asistencia->estudiante->carrera,
-            $asistencia->estudiante->año, // ¡CORRECCIÓN! Usar 'año' en el mapeo también
-            $asistencia->estudiante->uid,
-            $asistencia->accion,
+            $asistencia->fecha_hora->format('d/m/Y H:i:s'),
+            $asistencia->estudiante->ci ?? 'N/A',
+            $asistencia->nombre,
+            $asistencia->estudiante->carrera ?? 'N/A',
+            $asistencia->estudiante->año ?? 'N/A',
+            $asistencia->curso->paralelo ?? 'N/A', // <-- NUEVA CELDA
+            $asistencia->curso->materia->nombre ?? 'N/A',
             $asistencia->modo,
-            $asistencia->created_at->format('d/m/Y H:i:s'),
+            $asistencia->estado_llegada ? str_replace('_', ' ', $asistencia->estado_llegada) : 'N/A',
         ];
     }
 }
