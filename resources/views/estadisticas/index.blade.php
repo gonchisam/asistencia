@@ -5,19 +5,18 @@
 
         {{-- INICIO: Encabezado para impresión (PDF) --}}
         <div class="printable-header" style="display: none;">
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    <td style="width: 20%; vertical-align: top;">
-                        <img src="{{ asset('img/logo.jpg') }}" alt="Logo" style="width: 80px; height: auto;">
-                    </td>
-                    <td style="width: 80%; text-align: center; vertical-align: middle;">
-                        <h4 style="margin: 0; font-size: 16px;">INSTITUTO TECNICO NACIONAL DE COMERCIO</h4>
-                        <h5 style="margin: 0; font-size: 14px; font-weight: normal;">FEDERICO ALVAREZ PLATA NOCTURNO</h5>
-                        <br>
-                        <h4 style="margin: 0; font-size: 16px;">SISTEMA AUTOMATIZADO PARA EL CONTROL DE ASISTENCIA S.A.C.A.</h4>
-                    </td>
-                </tr>
-            </table>
+            <div class="encabezado">
+                <div class="logo-container">
+                    <img src="{{ asset('img/logoincos.png') }}" class="logo" alt="Logo INCOS">
+                </div>
+                <div class="encabezado-content">
+                    <h1>INSTITUTO TÉCNICO NACIONAL DE COMERCIO</h1>
+                    <h2>FEDERICO ALVAREZ PLATA "NOCTURNO"</h2>
+                    <div class="info">
+                        <strong>SISTEMA AUTOMATIZADO PARA EL CONTROL DE ASISTENCIA S.A.C.A.</strong>
+                    </div>
+                </div>
+            </div>
             <hr style="margin-top: 15px;">
         </div>
         {{-- FIN: Encabezado para impresión (PDF) --}}
@@ -171,6 +170,46 @@
 @push('styles')
 {{-- Estilos para controlar la impresión a PDF --}}
 <style>
+    /* Estilos para el encabezado moderno */
+    .encabezado {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 10px;
+    }
+
+    .logo-container {
+        flex: 0 0 auto;
+        margin-right: 20px;
+    }
+
+    .logo {
+        max-width: 200px;
+        height: auto;
+    }
+
+    .encabezado-content {
+        flex: 1;
+        text-align: center;
+    }
+
+    .encabezado-content h1 {
+        font-size: 16pt;
+        font-weight: bold;
+        margin-bottom: 3px;
+    }
+
+    .encabezado-content h2 {
+        font-size: 14pt;
+        margin-bottom: 3px;
+    }
+
+    .encabezado-content .info {
+        font-size: 10pt;
+        margin-top: 8px;
+    }
+
     @media print {
         /* 1. Permitir al usuario elegir la orientación. Se elimina @page { size: landscape; } */
 
@@ -432,4 +471,4 @@
         // Inicializar con la primera subpestaña activa
         switchSubTab('diaria');
     </script>
-@endpush    
+@endpush
