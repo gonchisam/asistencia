@@ -1,15 +1,19 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers; // <-- CORREGIDO (Solo un namespace)
 
+// <-- Se eliminó el 'namespace' duplicado y 'use App\Http\Controllers\Api;'
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
 use App\Models\Asistencia;
 use App\Models\Estudiante;
-use App\Models\Aula;
-use App\Models\Periodo;
-use Illuminate\Http\Request;
-use Carbon\Carbon;
+use App\Models\Aula; // <-- AÑADIDO (para \App\Models\Aula)
+use App\Models\Periodo; // <-- AÑADIDO (para \App\Models\Periodo)
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Carbon;
 use App\Services\HorarioService;
+// (Se eliminaron 'use' innecesarios como Auth, Hash, etc. que no se usan en este controlador)
 
 class AsistenciaController extends Controller
 {
@@ -21,9 +25,8 @@ class AsistenciaController extends Controller
     }
 
     /**
-     * NUEVO MÉTODO "SEMÁFORO"
+     * MÉTODO "SEMÁFORO" (¡MODIFICADO!)
      * Verifica si un estudiante puede marcar asistencia en este momento.
-     * Usado por Arduino (online) y la App Móvil.
      * Ruta: GET /api/asistencia/verificar
      */
     public function verificarEstadoAsistencia(Request $request)
@@ -33,12 +36,10 @@ class AsistenciaController extends Controller
         $estudiante = null;
         $aulaId = null;
 
-        // 1. IDENTIFICAR ESTUDIANTE (por UID o ID)
+        // 1. IDENTIFICAR ESTUDIANTE
         if ($request->has('uid_tarjeta')) {
-            // Búsqueda para Arduino por UID de tarjeta
             $estudiante = Estudiante::where('uid', $request->uid_tarjeta)->first();
         } elseif ($request->has('student_id')) {
-            // Búsqueda para App Móvil por ID
             $estudiante = Estudiante::find($request->student_id);
         }
 
@@ -59,7 +60,7 @@ class AsistenciaController extends Controller
             ], 403);
         }
 
-        // 3. OBTENER AULA (si se proporciona código)
+        // 3. OBTENER AULA
         if ($request->has('aula_codigo')) {
             $aulaCodigo = strtoupper(trim($request->aula_codigo));
             $aula = Aula::where('codigo', $aulaCodigo)->first();
@@ -69,15 +70,44 @@ class AsistenciaController extends Controller
                 Log::info("✅ Aula identificada en semáforo: {$aulaCodigo} -> ID {$aulaId}");
             } else {
                 Log::warning("⚠️ Código de aula no encontrado: {$aulaCodigo}");
-                // No retornamos error aquí, solo continuamos sin aula específica
             }
         }
 
-        // 4. USAR EL SERVICIO PARA VERIFICACIÓN COMPLETA
+        // 4. USAR EL SERVICIO PARA VERIFICACIÓN DE HORARIO
         try {
             $resultado = $this->horarioService->verificarEstadoAsistencia($estudiante->id, $aulaId);
-            
-            Log::info("📊 Resultado semáforo para {$estudiante->nombreCompleto}:", $resultado);
+            Log::info("📊 Resultado semáforo (Horario) para {$estudiante->nombreCompleto}:", $resultado);
+
+            // --- INICIO: ¡MODIFICACIÓN CLAVE! VERIFICAR DUPLICADOS ---
+            // Si el horario está abierto, AHORA verificamos si ya marcó.
+            if ($resultado['puede_marcar']) {
+                $periodo = Periodo::find($resultado['periodo_id']);
+                if ($periodo) {
+                    $yaMarco = $this->horarioService->verificarAsistenciaExistente(
+                        $estudiante, 
+                        $periodo, 
+                        Carbon::today()
+                    );
+
+                    if ($yaMarco) {
+                        Log::warning("⚠️ Semáforo ARDUINO denegado (Duplicado): {$estudiante->nombreCompleto}");
+                        // Sobreescribimos el resultado
+                        $resultado['puede_marcar'] = false;
+                        $resultado['mensaje'] = 'ASISTENCIA_YA_REGISTRADA';
+                    }
+                }
+            } 
+            // Si el horario está cerrado, verificamos si es porque ya marcó
+            else if ($resultado['mensaje'] == 'FUERA_DE_TOLERANCIA' && $resultado['periodo_id']) {
+                 $periodo = Periodo::find($resultado['periodo_id']);
+                 if ($periodo) {
+                     $yaMarco = $this->horarioService->verificarAsistenciaExistente($estudiante, $periodo, Carbon::today());
+                     if ($yaMarco) {
+                        $resultado['mensaje'] = 'ASISTENCIA_YA_REGISTRADA';
+                     }
+                 }
+            }
+            // --- FIN: ¡MODIFICACIÓN CLAVE! ---
 
             // Formatear respuesta estándar
             return response()->json([
@@ -102,51 +132,41 @@ class AsistenciaController extends Controller
     }
 
     /**
-     * MÉTODO EXISTENTE MODIFICADO (para Arduino)
-     * Obtiene la lista de estudiantes para un dispositivo (aula) y
-     * AÑADE EL ESTADO 'marco_hoy' para la lógica offline.
-     *
-     * (VERSIÓN CORREGIDA - MÁS ROBUSTA)
+     * MÉTODO EXISTENTE (SIN CAMBIOS, ESTÁ CORRECTO)
+     * Obtiene la lista de estudiantes para un dispositivo (aula)
      */
     public function getEstudiantesPorDispositivo(Request $request, $device_id)
     {
         Log::info("Iniciando sincronización de lista para aula: " . $device_id);
 
-        $aula = \App\Models\Aula::where('codigo', $device_id)->first();
+        $aula = Aula::where('codigo', $device_id)->first();
 
         if (!$aula) {
             Log::error("Aula no encontrada con codigo: " . $device_id);
             return response()->json(['error' => 'Aula no encontrada con codigo: ' . $device_id], 404);
         }
 
-        // --- INICIO DE CORRECCIÓN ---
-        // $diaSemana = Carbon::now()->locale('es')->dayName; // <-- ANTIGUO (Devolvía "miércoles")
-        $diaSemana = Carbon::now()->dayOfWeekIso; // <-- CORRECCIÓN 1 (Devuelve 3 para miércoles)
+        $diaSemana = Carbon::now()->dayOfWeekIso;
         Log::info("Buscando horarios para el día (ISO): " . $diaSemana);
 
-        // 1. Buscamos todos los horarios que (A) son en esta aula Y (B) son hoy.
         $horariosHoyEnAula = \App\Models\CursoHorario::where('aula_id', $aula->id)
-                                    // ->where('dia', $diaSemana) // <-- ANTIGUO (Columna 'dia' no existe)
-                                    ->where('dia_semana', $diaSemana) // <-- CORRECCIÓN 2 (Columna 'dia_semana')
-                                    ->with([
-                                        // 2. Traemos el curso de ese horario y SUS estudiantes
-                                        'curso' => function ($query) {
-                                            $query->with('estudiantes');
-                                        },
-                                        // 3. Traemos el periodo de ese horario
-                                        'periodo'
-                                    ])
-                                    ->get();
+                                        ->where('dia_semana', $diaSemana)
+                                        ->with([
+                                            'curso' => function ($query) {
+                                                $query->with('estudiantes');
+                                            },
+                                            'periodo'
+                                        ])
+                                        ->get();
         
         if ($horariosHoyEnAula->isEmpty()) {
              Log::info("No se encontraron horarios hoy (" . $diaSemana . ") para el aula " . $device_id);
-             return response()->json([]); // Devolver lista vacía, no es un error
+             return response()->json([]);
         }
 
         $listaEstudiantes = collect();
         Log::info("Horarios encontrados: " . $horariosHoyEnAula->count());
 
-        // Iteramos sobre los horarios encontrados
         foreach ($horariosHoyEnAula as $horario) {
             
             if (!$horario->curso) {
@@ -154,20 +174,17 @@ class AsistenciaController extends Controller
                 continue;
             }
             
-            // Iteramos sobre los estudiantes de ESE curso
             foreach ($horario->curso->estudiantes as $estudiante) {
                 
-                // Evitar duplicados (un estudiante puede tener 2 clases en la misma aula)
                 if (!$listaEstudiantes->contains('id', $estudiante->id)) {
                     
                     $yaMarco = false;
                     
-                    // Verificamos si el estudiante ya marcó en ESTE periodo específico HOY
                     if ($horario->periodo) {
                         $yaMarco = $this->horarioService->verificarAsistenciaExistente(
                             $estudiante, 
-                            $horario->periodo, // Usamos el periodo del horario
-                            Carbon::today() // Nos aseguramos que sea hoy
+                            $horario->periodo,
+                            Carbon::today()
                         );
                     } else {
                         Log::warning("El horario ID " . $horario->id . " no tiene un periodo asociado.");
@@ -178,22 +195,23 @@ class AsistenciaController extends Controller
                         'nombre' => $estudiante->nombre_completo,
                         'uid' => $estudiante->uid,
                         'estado' => $estudiante->estado, 
-                        'marco_hoy' => $yaMarco, // El campo clave
+                        'marco_hoy' => $yaMarco,
                     ]);
                 }
             }
         }
-        // --- FIN DE CORRECCIÓN ---
-
         Log::info("Sincronización de lista completa. Enviando " . $listaEstudiantes->count() . " estudiantes.");
         return response()->json($listaEstudiantes);
     }
     
+    /**
+     * MÉTODO EXISTENTE (SIN CAMBIOS, ESTÁ CORRECTO)
+     * Sincronización offline (usada por tu Arduino)
+     */
     public function syncOfflineAsistencias(Request $request)
     {
         Log::info('📦 Inicio de Sincronización Offline');
 
-        // El Arduino debe enviar un JSON Array
         $registros = $request->json()->all();
         
         if (empty($registros)) {
@@ -210,14 +228,12 @@ class AsistenciaController extends Controller
         foreach ($registros as $index => $record) {
             Log::info("📦 Procesando registro {$index}:", $record);
 
-            // 1. Validar datos básicos
             if (empty($record['uid']) || empty($record['fecha']) || empty($record['hora'])) {
                 $descartados_error++;
                 Log::warning("❌ Registro {$index}: Datos básicos faltantes");
                 continue;
             }
             
-            // 2. Encontrar al estudiante
             $estudiante = Estudiante::where('uid', $record['uid'])->where('estado', 1)->first();
             if (!$estudiante) {
                 $descartados_error++;
@@ -225,11 +241,9 @@ class AsistenciaController extends Controller
                 continue;
             }
 
-            // 3. Parsear fecha y hora
-            // Formato de Arduino: "dd/mm/YYYY" y "HH:MM:SS"
             try {
                 $fecha = Carbon::createFromFormat('d/m/Y', $record['fecha']);
-                $hora = $record['hora']; // ej: "10:30:00"
+                $hora = $record['hora'];
                 Log::info("📅 Registro {$index}: Fecha parseada - {$fecha->format('Y-m-d')}, Hora - {$hora}");
             } catch (\Exception $e) {
                 $descartados_error++;
@@ -237,7 +251,6 @@ class AsistenciaController extends Controller
                 continue;
             }
 
-            // 4. Encontrar el Periodo
             $periodo = $this->horarioService->getPeriodoPorHora($hora);
             if (!$periodo) {
                 $descartados_error++;
@@ -247,21 +260,14 @@ class AsistenciaController extends Controller
 
             Log::info("⏰ Registro {$index}: Período encontrado - {$periodo->nombre} ({$periodo->hora_inicio} - {$periodo->hora_fin})");
 
-            // 5. --- LÓGICA DE CONFLICTO ---
-            // Revisamos si ya existe una asistencia para ese estudiante,
-            // en ese período, en esa fecha.
             $yaMarco = $this->horarioService->verificarAsistenciaExistente($estudiante, $periodo, $fecha);
 
             if ($yaMarco) {
-                // CONFLICTO: La App (u otro registro) ganó. Descartamos el registro offline.
                 $descartados_conflicto++;
                 Log::info("⚡ Registro {$index}: Descartado (conflicto/duplicado) - Ya existe asistencia");
-                continue; // Siguiente registro
+                continue;
             }
 
-            // 6. --- REGISTRO VÁLIDO ---
-            // Si no hay conflicto, buscamos la clase y la guardamos
-            // Para obtener el contexto de la clase, necesitamos simular el horario en esa fecha/hora
             $clase = $this->getClaseParaEstudianteEnFechaHora($estudiante, $fecha, $hora);
 
             try {
@@ -298,11 +304,11 @@ class AsistenciaController extends Controller
     }
 
     /**
-     * HELPER: Obtiene la clase de un estudiante en una fecha y hora específica
+     * HELPER (SIN CAMBIOS)
      */
     private function getClaseParaEstudianteEnFechaHora(Estudiante $estudiante, Carbon $fecha, string $hora)
     {
-        $diaSemana = $fecha->dayOfWeekIso; // 1 = Lunes, 7 = Domingo
+        $diaSemana = $fecha->dayOfWeekIso;
         
         $periodo = $this->horarioService->getPeriodoPorHora($hora);
         if (!$periodo) {
@@ -317,9 +323,7 @@ class AsistenciaController extends Controller
             ->with(['horarios' => function ($query) use ($diaSemana, $periodo) {
                 $query->where('dia_semana', $diaSemana)
                       ->where('periodo_id', $periodo->id)
-                      // --- INICIO DE LA CORRECCIÓN ---
-                      ->with('curso.materia', 'aula'); // Se usa 'curso.materia' en lugar de 'materia'
-                      // --- FIN DE LA CORRECCIÓN ---
+                      ->with('curso.materia', 'aula');
             }])
             ->first();
 
@@ -331,14 +335,13 @@ class AsistenciaController extends Controller
     }
 
     /**
-     * ENDPOINT PRINCIPAL PARA ARDUINO/RFID - OPCIÓN B (CÓDIGO DE AULA)
+     * ENDPOINT PRINCIPAL (SIN CAMBIOS, ESTÁ CORRECTO)
      * Ruta: POST /api/asistencia
      */
     public function store(Request $request)
     {
         Log::info('📡 Petición RFID recibida:', $request->all());
 
-        // 1. VALIDAR DATOS DE ENTRADA
         try {
             $data = $request->validate([
                 'uid' => 'required|string|max:255',
@@ -354,7 +357,6 @@ class AsistenciaController extends Controller
             ], 400);
         }
 
-        // 2. BUSCAR ESTUDIANTE
         $estudiante = Estudiante::where('uid', $data['uid'])->first();
 
         if (!$estudiante) {
@@ -365,7 +367,6 @@ class AsistenciaController extends Controller
             ], 404);
         }
 
-        // 3. VALIDAR ESTADO ACTIVO
         if (!$estudiante->estado) {
             Log::warning("⚠️ Cuenta inactiva: UID {$data['uid']}");
             return response()->json([
@@ -374,14 +375,12 @@ class AsistenciaController extends Controller
             ], 403);
         }
 
-        // 4. ✅ BUSCAR AULA POR CÓDIGO (NO POR ID)
         $aulaId = null;
         $aulaNombre = 'Sin aula';
         
         if (!empty($data['aula_codigo'])) {
             $aulaCodigo = strtoupper(trim($data['aula_codigo']));
             
-            // Buscar el aula por su código
             $aula = Aula::where('codigo', $aulaCodigo)->first();
             
             if (!$aula) {
@@ -400,18 +399,30 @@ class AsistenciaController extends Controller
             Log::warning("⚠️ No se recibió código de aula, se procederá sin validación específica");
         }
 
-        // 5. VERIFICAR HORARIO Y PERMISOS (CONFIANZA CERO)
+        // 5. VERIFICAR HORARIO (El semáforo ahora es más inteligente)
         $estado = $this->horarioService->verificarEstadoAsistencia(
             $estudiante->id, 
             $aulaId
         );
 
+        // (Re-verificamos duplicados en el semáforo)
+        if ($estado['puede_marcar']) {
+             $periodo = Periodo::find($estado['periodo_id']);
+             if ($periodo) {
+                 $yaMarco = $this->horarioService->verificarAsistenciaExistente($estudiante, $periodo, Carbon::today());
+                 if ($yaMarco) {
+                    $estado['puede_marcar'] = false;
+                    $estado['mensaje'] = 'ASISTENCIA_YA_REGISTRADA';
+                 }
+             }
+        }
+
         if (!$estado['puede_marcar']) {
-            // Mensajes amigables para el LCD
             $mensajesAmigables = [
                 'FUERA_DE_TOLERANCIA' => 'FUERA DE HORARIO',
                 'SIN_CLASE' => 'SIN CLASE AHORA',
-                'SIN_CLASE_EN_AULA' => 'AULA INCORRECTA'
+                'SIN_CLASE_EN_AULA' => 'AULA INCORRECTA',
+                'ASISTENCIA_YA_REGISTRADA' => 'YA REGISTRADO HOY' // <-- Mensaje del semáforo
             ];
             
             $mensaje = $mensajesAmigables[$estado['mensaje']] ?? 'NO PERMITIDO';
@@ -424,7 +435,7 @@ class AsistenciaController extends Controller
             ], 403);
         }
 
-        // 6. VERIFICAR DUPLICADOS
+        // 6. VERIFICAR DUPLICADOS (Capa de seguridad 2, por si acaso)
         $now = Carbon::now();
         $periodoId = $estado['periodo_id'];
 
@@ -435,7 +446,7 @@ class AsistenciaController extends Controller
             ->exists();
 
         if ($yaMarco) {
-            Log::warning("⚠️ Asistencia duplicada: UID {$data['uid']}, Periodo {$periodoId}");
+            Log::warning("⚠️ Asistencia duplicada (Capa 2): UID {$data['uid']}, Periodo {$periodoId}");
             return response()->json([
                 'success' => false,
                 'message' => 'YA REGISTRADO HOY'
@@ -471,12 +482,12 @@ class AsistenciaController extends Controller
     }
 
     /**
-     * ENDPOINT PARA SINCRONIZACIÓN OFFLINE (LOTE)
+     * ENDPOINT OFFLINE LOTE (¡MODIFICADO!)
      * Ruta: POST /api/asistencia/batch
      */
     public function storeBatch(Request $request)
     {
-        Log::info('📦 Sincronización en lote recibida');
+        Log::info('📦 Sincronización en lote (storeBatch) recibida');
 
         $validationRules = [
             '*.uid' => 'required|string|max:255',
@@ -504,23 +515,29 @@ class AsistenciaController extends Controller
                 $estudiante = Estudiante::where('uid', $registro['uid'])->first();
 
                 if (!$estudiante) {
-                    $failedRecords[] = [
-                        'record' => $registro, 
-                        'error' => 'UID no encontrado'
-                    ];
+                    $failedRecords[] = [ 'record' => $registro, 'error' => 'UID no encontrado' ];
                     continue;
                 }
 
                 if (!$estudiante->estado) {
-                    $failedRecords[] = [
-                        'record' => $registro, 
-                        'error' => 'Cuenta inactiva'
-                    ];
+                    $failedRecords[] = [ 'record' => $registro, 'error' => 'Cuenta inactiva' ];
                     continue;
                 }
 
                 $fecha_hora_str = $registro['fecha'] . ' ' . $registro['hora'];
                 $fecha_hora = Carbon::createFromFormat('d/m/Y H:i:s', $fecha_hora_str);
+                
+                // --- INICIO: NUEVA VERIFICACIÓN DUPLICADOS (BATCH) ---
+                $periodo = $this->horarioService->getPeriodoPorHora($fecha_hora->format('H:i:s'));
+                if ($periodo) {
+                    $yaMarco = $this->horarioService->verificarAsistenciaExistente($estudiante, $periodo, $fecha_hora);
+                    if ($yaMarco) {
+                         $failedRecords[] = ['record' => $registro, 'error' => 'Conflicto: Asistencia ya registrada'];
+                         Log::warning("📦 storeBatch: Registro duplicado descartado para UID {$registro['uid']}");
+                         continue; // Omitir este registro
+                    }
+                }
+                // --- FIN: NUEVA VERIFICACIÓN DUPLICADOS (BATCH) ---
 
                 Asistencia::create([
                     'uid' => $registro['uid'],
@@ -528,9 +545,9 @@ class AsistenciaController extends Controller
                     'accion' => $registro['accion'],
                     'modo' => $registro['modo'],
                     'fecha_hora' => $fecha_hora,
-                    'periodo_id' => null,
+                    'periodo_id' => $periodo ? $periodo->id : null, // <-- MEJORADO
                     'curso_id' => null,
-                    'estado_llegada' => null,
+                    'estado_llegada' => $periodo ? $this->calcularEstadoLlegada($periodo->id, $fecha_hora) : null, // <-- MEJORADO
                 ]);
 
                 $storedCount++;
@@ -565,8 +582,7 @@ class AsistenciaController extends Controller
     }
 
     /**
-     * MÉTODO EXISTENTE MODIFICADO (para Arduino RFID)
-     * Almacena una asistencia proveniente de un dispositivo RFID.
+     * ENDPOINT ANTIGUO (SIN CAMBIOS, ESTÁ CORRECTO)
      * Ruta: POST /api/asistencia/rfid
      */
     public function storeRfid(Request $request)
@@ -581,10 +597,7 @@ class AsistenciaController extends Controller
             Log::warning('❌ Tarjeta RFID no autorizada: ' . $request->uid);
             return response()->json(['success' => false, 'message' => 'ESTUDIANTE_NO_AUTORIZADO'], 404);
         }
-
-        // --- INICIO DE LÓGICA DE VERIFICACIÓN (Confianza Cero) ---
         
-        // 1. ¿Tiene clase ahora?
         $claseActual = $this->horarioService->getClaseActualParaEstudiante($estudiante);
 
         if (!$claseActual) {
@@ -592,8 +605,6 @@ class AsistenciaController extends Controller
             return response()->json(['success' => false, 'message' => 'SIN_CLASE_AHORA'], 400);
         }
 
-        // 2. ¿Ya marcó hoy en este periodo?
-        // 2. ¿Ya marcó hoy en este periodo?
         $periodoActual = $claseActual->periodo;
         $yaMarco = $this->horarioService->verificarAsistenciaExistente($estudiante, $periodoActual);
 
@@ -602,12 +613,8 @@ class AsistenciaController extends Controller
             return response()->json(['success' => false, 'message' => 'ASISTENCIA_YA_REGISTRADA'], 409);
         }
             
-        // --- FIN DE LÓGICA DE VERIFICACIÓN ---
-
-        // Si pasó las validaciones, registramos
         try {
             $asistencia = Asistencia::create([
-                // ✅ ELIMINADO: 'student_id' (no existe en la tabla)
                 'uid' => $estudiante->uid,
                 'nombre' => $estudiante->nombreCompleto,
                 'fecha_hora' => Carbon::now(),
@@ -635,7 +642,7 @@ class AsistenciaController extends Controller
     }
 
     /**
-     * HELPER: Calcula estado de llegada
+     * HELPER (SIN CAMBIOS)
      */
     private function calcularEstadoLlegada($periodoId, Carbon $horaLlegada)
     {

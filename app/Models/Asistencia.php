@@ -2,6 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\Estudiante;
+use App\Models\Curso;
+use App\Models\Periodo;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -42,7 +46,7 @@ class Asistencia extends Model
      */
     public function curso()
     {
-        return $this->belongsTo(Curso::class);
+        return $this->belongsTo(Curso::class, 'curso_id');
     }
 
     /**
@@ -50,7 +54,7 @@ class Asistencia extends Model
      */
     public function periodo()
     {
-        return $this->belongsTo(Periodo::class);
+        return $this->belongsTo(Periodo::class, 'periodo_id');
     }
 
     /**
