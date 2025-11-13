@@ -144,6 +144,9 @@
                                     <a href="{{ route('admin.calendario.index') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition duration-150 ease-in-out {{ request()->routeIs('admin.calendario.*') ? 'bg-blue-50 text-blue-600' : '' }}">
                                         Calendario
                                     </a>
+                                    <a href="{{ route('admin.gestiones.index') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition duration-150 ease-in-out {{ request()->routeIs('admin.gestiones.*') ? 'bg-blue-50 text-blue-600' : '' }}">
+                                        Gestion Academica
+                                    </a>
                                 </div>
                             </li>
                             </ul>

@@ -14,14 +14,19 @@ class CalendarioController extends Controller
         $dias = DiaNoLaborable::all();
         $eventos = [];
 
-        // Preparamos los eventos para el calendario (FullCalendar)
         foreach ($dias as $dia) {
             $eventos[] = [
+                'id' => $dia->id, // <--- ¡CRUCIAL! Pasar el ID
                 'title' => $dia->descripcion,
                 'start' => $dia->fecha->format('Y-m-d'),
                 'backgroundColor' => $dia->color, 
                 'borderColor' => $dia->color,
                 'allDay' => true,
+                // Pasamos datos extra para rellenar el modal al editar
+                'extendedProps' => [
+                    'tipo' => $dia->tipo,
+                    'descripcion' => $dia->descripcion
+                ]
             ];
         }
 
@@ -53,5 +58,30 @@ class CalendarioController extends Controller
 
         return redirect()->route('admin.calendario.index')
             ->with('success', 'Evento registrado correctamente.');
+    }
+
+    public function update(Request $request, $id)
+    {
+        $dia = DiaNoLaborable::findOrFail($id);
+        
+        $request->validate([
+            'tipo' => 'required|in:FERIADO,VACACION,EMERGENCIA,TOLERANCIA',
+            'descripcion' => 'required|string|max:255',
+        ]);
+
+        $dia->update([
+            'tipo' => $request->tipo,
+            'descripcion' => $request->descripcion,
+        ]);
+
+        return redirect()->route('admin.calendario.index')->with('success', 'Evento actualizado correctamente.');
+    }
+
+    public function destroy($id)
+    {
+        $dia = DiaNoLaborable::findOrFail($id);
+        $dia->delete();
+
+        return redirect()->route('admin.calendario.index')->with('success', 'Evento eliminado y día restablecido.');
     }
 }

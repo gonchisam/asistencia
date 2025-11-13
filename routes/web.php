@@ -110,6 +110,14 @@ Route::middleware('auth')->group(function () {
         // === RUTAS DEL CALENDARIO (Corregidas) ===
         Route::get('/calendario', [CalendarioController::class, 'index'])->name('calendario.index');
         Route::post('/calendario', [CalendarioController::class, 'store'])->name('calendario.store');
+
+        // NUEVAS RUTAS:
+        Route::put('/calendario/{id}', [CalendarioController::class, 'update'])->name('calendario.update');
+        Route::delete('/calendario/{id}', [CalendarioController::class, 'destroy'])->name('calendario.destroy');
+
+        // === GESTIONES ACADÉMICAS (NUEVO) ===
+        Route::resource('gestiones', \App\Http\Controllers\GestionController::class);
+        Route::post('gestiones/{gestione}/activar', [App\Http\Controllers\GestionController::class, 'toggleActiva'])->name('gestiones.activar');
     });
 });
 
