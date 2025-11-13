@@ -2,7 +2,47 @@
 
 @section('content')
 <div class="bg-white rounded-xl shadow-2xl p-8 transform transition-all duration-300 w-full max-w-7xl mx-auto">
-    
+
+    {{-- 🔹 SECCIÓN DE ALERTAS DEL CALENDARIO (PASO 5) --}}
+    {{-- Esta sección solo aparece si enviamos la variable $eventoHoy desde el controlador --}}
+    @if(isset($eventoHoy) && $eventoHoy)
+        @php
+            // Definimos colores según el tipo de evento
+            $alertColor = match($eventoHoy->tipo) {
+                'EMERGENCIA' => 'bg-red-100 border-red-500 text-red-700', // Bloqueos (Rojo)
+                'FERIADO'    => 'bg-blue-100 border-blue-500 text-blue-700', // Feriados (Azul)
+                'VACACION'   => 'bg-yellow-100 border-yellow-500 text-yellow-700', // Vacaciones (Amarillo)
+                'TOLERANCIA' => 'bg-indigo-100 border-indigo-500 text-indigo-700', // Tolerancia (Morado)
+                default      => 'bg-gray-100 border-gray-500 text-gray-700',
+            };
+            
+            $icono = match($eventoHoy->tipo) {
+                'EMERGENCIA' => '🚨',
+                'FERIADO'    => '📅',
+                'VACACION'   => '🏖️',
+                'TOLERANCIA' => '⚠️',
+                default      => 'ℹ️',
+            };
+        @endphp
+
+        <div class="border-l-4 p-4 mb-6 rounded-r {{ $alertColor }}" role="alert">
+            <div class="flex items-center">
+                <div class="text-2xl mr-4">{{ $icono }}</div>
+                <div>
+                    <p class="font-bold uppercase">{{ $eventoHoy->tipo }}: {{ $eventoHoy->descripcion }}</p>
+                    @if($eventoHoy->tipo == 'EMERGENCIA')
+                        <p class="text-sm">El sistema <strong>NO marcará faltas</strong> automáticamente el día de hoy.</p>
+                    @elseif($eventoHoy->tipo == 'TOLERANCIA')
+                        <p class="text-sm">Se tomará asistencia normal, pero existe tolerancia en el horario de llegada.</p>
+                    @else
+                        <p class="text-sm">Día no laborable académico.</p>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
+    {{-- 🔹 FIN SECCIÓN ALERTAS --}}
+
     {{-- 🔹 Título principal --}}
     <h2 class="text-3xl font-extrabold text-center text-gray-900 mb-8">
         <span class="text-blue-600">Registro de Asistencia</span>
@@ -239,6 +279,6 @@
     @endif
 </div>
 
-{{-- Alpine.js (si no está en tu layout) --}}
+{{-- Alpine.js --}}
 <script src="//unpkg.com/alpinejs" defer></script>
 @endsection

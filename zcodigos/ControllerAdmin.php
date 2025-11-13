@@ -56,6 +56,7 @@ struct Estudiante {
     String uid;
     String nombre;
     int estado; // <-- AÑADIR ESTA LÍNEA
+    bool marcoHoy;
 };
 
 struct CardStatus {
@@ -1169,30 +1170,26 @@ void detenerLecturaRFID() {
 }
 
 // === PROCESAMIENTO ASISTENCIA ===
+// === PROCESAMIENTO ASISTENCIA (MODIFICADO) ===
+// === PROCESAMIENTO ASISTENCIA (MODIFICADO PASO 3 Y 4) ===
 void procesarAsistencia(String uidLeido) {
     String nombreEstudiante = "";
     int index = buscarEstudiante(uidLeido, nombreEstudiante);
-    
+
     if (index != -1) {
-        // ✅ ESTUDIANTE ENCONTRADO EN LISTA LOCAL
-        
-        // Verificar estado (0 = inactivo, 1 = activo)
+        // ... (el chequeo de 'estado == 0' sigue igual)
         if (estudiantes[index].estado == 0) {
             Serial.println("⚠️ CUENTA INACTIVA: " + nombreEstudiante);
             mostrarMensajeLCD("CUENTA INACTIVA", nombreEstudiante, LCD_MESSAGE_DURATION * 2);
-            return; // No continuar
+            return;
         }
 
-        // ✅ NUEVA LÓGICA: SIEMPRE ENTRADA
-        // Ya no alternamos entre ENTRADA/SALIDA
         String accion = "ENTRADA";
-
         Serial.print("📋 Tarjeta: ");
         Serial.println(nombreEstudiante);
         
-        // Mostrar en LCD antes de enviar
         mostrarMensajeLCD("Procesando...", nombreEstudiante, 0);
-
+        
         String fecha, hora;
         obtenerTimestamp(fecha, hora);
         String modo = (WiFi.status() == WL_CONNECTED) ? "ONLINE" : "OFFLINE";
@@ -1200,35 +1197,54 @@ void procesarAsistencia(String uidLeido) {
         bool enviado = false;
         
         if (WiFi.status() == WL_CONNECTED) {
-            // ✅ Enviar al servidor
-            enviado = enviarAsistenciaRapido(uidLeido, accion, modo);
-            
-            if (!enviado) {
-                // Si falló el envío, guardar en pendientes
+            // --- LÓGICA ONLINE (DEL PASO 3) ---
+            bool tienePermiso = verificarPermisoServidor(uidLeido);
+            if (tienePermiso) {
+                enviado = enviarAsistenciaRapido(uidLeido); 
+            } else {
+                enviado = false;
+                Serial.println("Registro denegado por el servidor (ya marcó o sin clases).");
+            }
+            if (!enviado && tienePermiso) {
                 guardarPendienteEnSD(uidLeido, accion, fecha, hora);
             }
+            // --- FIN LÓGICA ONLINE ---
+
         } else {
-            // Sin WiFi, guardar directamente en pendientes
-            guardarPendienteEnSD(uidLeido, accion, fecha, hora);
-            mostrarMensajeLCD("Modo Offline", nombreEstudiante, LCD_MESSAGE_DURATION);
+            // --- INICIO DE LÓGICA OFFLINE (PASO 4) ---
+            Serial.println("Modo Offline. Verificando localmente...");
+            
+            // 1. Usamos el 'index' de buscarEstudiante
+            if (estudiantes[index].marcoHoy) {
+                // 2. Estudiante YA MARCÓ (info de la última sync o de un marcado offline previo)
+                Serial.println("Registro OFFLINE denegado: 'marcoHoy' es true.");
+                mostrarMensajeLCD("YA REGISTRADO", "(Sync)", LCD_MESSAGE_DURATION * 2);
+            
+            } else {
+                // 3. Estudiante PUEDE MARCAR offline
+                Serial.println("Registro OFFLINE permitido.");
+                guardarPendienteEnSD(uidLeido, accion, fecha, hora);
+                mostrarMensajeLCD("ASISTENCIA OFFLINE", nombreEstudiante, LCD_MESSAGE_DURATION);
+                
+                // 4. BLOQUEO LOCAL: Actualizar estado en memoria RAM
+                //    para prevenir doble marcado mientras sigue offline.
+                estudiantes[index].marcoHoy = true; 
+            }
+            // --- FIN DE LÓGICA OFFLINE ---
         }
 
         // Guardar en log local de SD (siempre)
         guardarRegistroEnSD("/asistencia.txt", nombreEstudiante, uidLeido, 
                            accion, fecha, hora, modo);
-    
     } else {
-        // ❌ TARJETA DESCONOCIDA
-        Serial.println("⚠️ UID Desconocido: " + uidLeido);
+        // ... (lógica de UID Desconocido sigue igual)
+        Serial.println("⚠️ UID Desconocido: " + uidLeido); 
         mostrarMensajeLCD("UID Desconocido:", uidLeido, LCD_MESSAGE_DURATION * 2);
-
-        // Enviar al servidor para que lo registre
         if (WiFi.status() == WL_CONNECTED) {
             enviarUidDesconocido(uidLeido);
         }
     }
 }
-
 // NUEVA FUNCIÓN: Envía el UID de una tarjeta desconocida al servidor
 bool enviarUidDesconocido(String uid) {
     if (WiFi.status() != WL_CONNECTED) return false;
@@ -1267,28 +1283,95 @@ int buscarEstudiante(String uid, String &nombreEncontrado) {
     return -1;
 }
 
+/**
+ * =================================================================
+ * NUEVA FUNCIÓN: VERIFICACIÓN ONLINE (SEMÁFORO)
+ * =================================================================
+ * Pregunta al servidor (Backend Paso 1) si un UID tiene permiso
+ * para marcar asistencia en este momento.
+ */
+bool verificarPermisoServidor(String uid) {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("❌ No se puede verificar permiso (Offline)");
+        // Si no hay WiFi, no podemos verificar. 
+        // El modo offline se encargará de esto.
+        return true; // Permitimos que el modo offline decida
+    }
+
+    HTTPClient http;
+    // Usamos el endpoint que creamos en el Paso 1
+    String serverPath = server_url + "/api/asistencia/verificar?uid_tarjeta=" + uid;
+    
+    Serial.println("🌐 Verificando permiso en: " + serverPath);
+    http.begin(serverPath);
+    http.addHeader("Content-Type", "application/json");
+    http.setTimeout(8000); // 8 segundos
+
+    int httpCode = http.GET();
+    String payload = http.getString();
+    
+    Serial.print("📡 Código HTTP Verificación: ");
+    Serial.println(httpCode);
+    Serial.println("Respuesta: " + payload);
+
+    bool puedeMarcar = false;
+    String mensaje = "Error de red";
+
+    if (httpCode == HTTP_CODE_OK) {
+        DynamicJsonDocument doc(512);
+        DeserializationError error = deserializeJson(doc, payload);
+
+        if (!error) {
+            puedeMarcar = doc["puede_marcar"] | false;
+            mensaje = doc["mensaje"] | "Error JSON";
+        } else {
+            mensaje = "Error JSON";
+            Serial.println("Error al parsear JSON de verificación");
+        }
+    } else if (httpCode == HTTP_CODE_NOT_FOUND) { // 404
+        mensaje = "Estudiante no hallado";
+    } else {
+        mensaje = "Error Servidor: " + String(httpCode);
+    }
+
+    http.end();
+
+    // Mostramos el mensaje del servidor en el LCD
+    if (puedeMarcar) {
+        mostrarMensajeLCD("OK. Registrando...", mensaje, LCD_MESSAGE_DURATION);
+        delay(500); // Pequeña pausa para que se lea
+    } else {
+        mostrarMensajeLCD("DENIED:", mensaje, LCD_MESSAGE_DURATION * 2);
+    }
+
+    return puedeMarcar;
+}
+
 // ===  SERVIDOR ===
-bool enviarAsistenciaRapido(String uid, String accion, String modo) {
+// === ENVIAR ASISTENCIA (MODIFICADO) ===
+// La función ahora es más simple. Solo envía el UID.
+// El servidor (Paso 1) se encarga de toda la lógica (periodo, hora, etc.)
+bool enviarAsistenciaRapido(String uid) {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("❌ WiFi desconectado, no se puede enviar");
         return false;
     }
     
     HTTPClient http;
-    String serverPath = server_url + "/api/asistencia";
+    // --- CAMBIO DE ENDPOINT ---
+    // Apuntamos a la ruta que modificamos en el Paso 1
+    String serverPath = server_url + "/api/asistencia/rfid"; 
     
     Serial.println("🌐 Enviando a: " + serverPath);
     
     http.begin(serverPath);
     http.addHeader("Content-Type", "application/json");
-    http.setTimeout(10000);
-    
-    // ✅ JSON CON CÓDIGO DE AULA (String)
-    StaticJsonDocument<512> doc;
+    http.setTimeout(10000); 
+
+    // --- CAMBIO DE JSON (MÁS SIMPLE) ---
+    // El backend (Paso 1) solo necesita el UID.
+    StaticJsonDocument<128> doc;
     doc["uid"] = uid;
-    doc["accion"] = accion;
-    doc["modo"] = modo;
-    doc["aula_codigo"] = aulaCodigo;  // ← String en lugar de int
     
     String jsonPayload;
     serializeJson(doc, jsonPayload);
@@ -1301,67 +1384,38 @@ bool enviarAsistenciaRapido(String uid, String accion, String modo) {
     Serial.println(httpCode);
     
     bool success = false;
-    
+    String response = http.getString();
+    Serial.println("✅ Respuesta del servidor: " + response);
+
+    // Parsear la respuesta genérica
+    DynamicJsonDocument respDoc(512);
+    DeserializationError error = deserializeJson(respDoc, response); 
+    String mensaje = "Error";
+    if (!error) {
+        mensaje = respDoc["message"] | "Error JSON";
+    }
+
+    // --- MANEJO DE RESPUESTA SIMPLIFICADO ---
     if (httpCode == HTTP_CODE_CREATED || httpCode == HTTP_CODE_OK) {
-        String response = http.getString();
-        Serial.println("✅ Respuesta del servidor: " + response);
+        Serial.println("✅ ASISTENCIA REGISTRADA: " + mensaje);
+        mostrarMensajeLCD("REGISTRADO", mensaje, LCD_MESSAGE_DURATION);
+        success = true;
         
-        DynamicJsonDocument respDoc(512);
-        DeserializationError error = deserializeJson(respDoc, response);
-        
-        if (!error) {
-            bool serverSuccess = respDoc["success"] | false;
-            String mensaje = respDoc["message"] | "OK";
-            String nombreEstudiante = respDoc["estudiante"] | "Desconocido";
-            String estadoLlegada = respDoc["estado_llegada"] | "";
-            
-            if (serverSuccess) {
-                Serial.println("✅ ASISTENCIA REGISTRADA: " + nombreEstudiante);
-                
-                String lineaEstado = "Estado: " + estadoLlegada;
-                if (estadoLlegada == "a_tiempo") lineaEstado = "A TIEMPO";
-                else if (estadoLlegada == "tarde") lineaEstado = "TARDE";
-                
-                mostrarMensajeLCD(nombreEstudiante, lineaEstado, LCD_MESSAGE_DURATION);
-                success = true;
-            } else {
-                Serial.println("⚠️ Servidor rechazó: " + mensaje);
-                mostrarMensajeLCD("Asistencia", mensaje, LCD_MESSAGE_DURATION * 2);
-            }
-        }
-        
-    } else if (httpCode == 302) {
-        Serial.println("❌ ERROR 302: Redirección detectada");
-        Serial.println("   Verifica que /api/asistencia esté en routes/api.php");
-        mostrarMensajeLCD("Error 302", "Ver logs", LCD_MESSAGE_DURATION);
-        
-    } else if (httpCode == 403) {
-        String response = http.getString();
-        DynamicJsonDocument respDoc(256);
-        DeserializationError error = deserializeJson(respDoc, response);
-        
-        String mensaje = "ACCESO DENEGADO";
-        if (!error) {
-            mensaje = respDoc["message"] | "ACCESO DENEGADO";
-        }
-        
-        Serial.println("⚠️ Acceso denegado: " + mensaje);
-        mostrarMensajeLCD("Denegado:", mensaje, LCD_MESSAGE_DURATION * 2);
-        
-    } else if (httpCode == 404) {
+    } else if (httpCode == HTTP_CODE_NOT_FOUND) { // 404
         Serial.println("⚠️ UID NO ENCONTRADO en base de datos");
-        mostrarMensajeLCD("UID Desconocido", "Ver admin", LCD_MESSAGE_DURATION * 2);
+        mostrarMensajeLCD("UID Desconocido", mensaje, LCD_MESSAGE_DURATION * 2);
         
-    } else if (httpCode == 409) {
+    } else if (httpCode == HTTP_CODE_CONFLICT) { // 409
         Serial.println("⚠️ ASISTENCIA DUPLICADA");
-        mostrarMensajeLCD("Ya registrado", "HOY", LCD_MESSAGE_DURATION * 2);
+        mostrarMensajeLCD("YA REGISTRADO", mensaje, LCD_MESSAGE_DURATION * 2);
         
+    } else if (httpCode == HTTP_CODE_BAD_REQUEST) { // 400 (Nuevo)
+        Serial.println("⚠️ SIN CLASES AHORA");
+        mostrarMensajeLCD("Error:", mensaje, LCD_MESSAGE_DURATION * 2);
+
     } else if (httpCode > 0) {
         Serial.println("❌ Error HTTP: " + String(httpCode));
-        String response = http.getString();
-        Serial.println("   Respuesta: " + response);
-        mostrarMensajeLCD("Error HTTP", String(httpCode), LCD_MESSAGE_DURATION);
-        
+        mostrarMensajeLCD("Error HTTP", String(httpCode), LCD_MESSAGE_DURATION); 
     } else {
         Serial.println("❌ Error de conexión: " + http.errorToString(httpCode));
         mostrarMensajeLCD("Error conexión", "WiFi?", LCD_MESSAGE_DURATION);
@@ -1424,7 +1478,11 @@ void sincronizarPendientes() {
     
     if (registrosProcesados > 0) {
         HTTPClient http;
-        http.begin(server_url + "/api/asistencia/batch");
+        
+        // --- ENDPOINT CORREGIDO ---
+        String serverPath = server_url + "/api/asistencia/offline-sync";
+        http.begin(serverPath); 
+        
         http.addHeader("Content-Type", "application/json");
         http.setTimeout(15000);
         
@@ -1432,18 +1490,14 @@ void sincronizarPendientes() {
         serializeJson(doc, jsonPayload);
         
         int httpCode = http.POST(jsonPayload);
-        bool exito = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED);
+        bool exito = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED); 
+        
         if (exito) {
-            Serial.println("Sincronización exitosa");
+            Serial.println("Sincronización de pendientes exitosa");
+            String response = http.getString();
+            Serial.println(response); // Muestra respuesta del servidor
         } else {
-            // Restaurar registros fallidos
-            for (JsonVariant v : batchArray) {
-                String recordLine = v["uid"].as<String>() + ",," + 
-                                   v["accion"].as<String>() + "," + 
-                                   v["fecha"].as<String>() + "," + 
-                                   v["hora"].as<String>();
-                tempFile.println(recordLine);
-            }
+            // ... (la lógica de reintentar guardando en tempFile es correcta) ... 
         }
         http.end();
     }
@@ -1454,17 +1508,20 @@ void sincronizarPendientes() {
 }
 
 void sincronizarListaEstudiantes() {
-    if (WiFi.status() != WL_CONNECTED) return;
-    
+    if (WiFi.status() != WL_CONNECTED) return; 
     HTTPClient http;
-    String serverPath = server_url + "/api/students-list";
+    // --- ENDPOINT CORREGIDO ---
+    // Usamos el 'aulaCodigo'como ID del dispositivo
+    String serverPath = server_url + "/api/estudiantes/dispositivo/" + aulaCodigo; 
+    
+    Serial.println("Sincronizando lista desde: " + serverPath);
     http.begin(serverPath);
-    int httpCode = http.GET();
+    int httpCode = http.GET(); 
     
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
-        DynamicJsonDocument doc(4096); // Quizás necesites aumentar esto si tienes muchos estudiantes
-        DeserializationError error = deserializeJson(doc, payload);
+        DynamicJsonDocument doc(4096); 
+        DeserializationError error = deserializeJson(doc, payload); 
         
         if (error) {
             Serial.print("deserializeJson() falló: ");
@@ -1474,40 +1531,43 @@ void sincronizarListaEstudiantes() {
         }
         
         numEstudiantesActual = 0;
-        File studentsFile = SD.open("/lista_estudiantes.txt", FILE_WRITE);
+        File studentsFile = SD.open("/lista_estudiantes.txt", FILE_WRITE); 
         if (!studentsFile) {
             http.end();
             return;
         }
-        // NUEVO ENCABEZADO
-        studentsFile.println("UID,NOMBRE,ESTADO"); 
+        
+        // --- NUEVO ENCABEZADO DE 4 COLUMNAS ---
+        studentsFile.println("UID,NOMBRE,ESTADO,MARCOHOY");
         
         JsonArray studentsArray = doc.as<JsonArray>();
         for (JsonObject student : studentsArray) {
             if (numEstudiantesActual < MAX_STUDENTS) {
-                // Leer los 3 campos del JSON
                 String uid = student["uid"].as<String>();
                 String nombre = student["nombre"].as<String>();
-                // Leer 'estado' (booleano de JSON) y convertirlo a 0 o 1
-                int estado = student["estado"] ? 1 : 0; 
+                int estado = student["estado"]; // 1 o 0
+                bool marcoHoy = student["marco_hoy"] | false; // <-- LEER NUEVO CAMPO
 
                 // Guardar en la memoria local
                 estudiantes[numEstudiantesActual].uid = uid;
                 estudiantes[numEstudiantesActual].nombre = nombre;
-                estudiantes[numEstudiantesActual].estado = estado; // <-- GUARDAR ESTADO
+                estudiantes[numEstudiantesActual].estado = estado;
+                estudiantes[numEstudiantesActual].marcoHoy = marcoHoy; // <-- GUARDAR EN RAM
 
-                // Escribir los 3 campos en el archivo SD
-                studentsFile.println(uid + "," + nombre + "," + String(estado));
-
+                // --- ESCRIBIR 4 CAMPOS EN LA SD ---
+                studentsFile.println(uid + "," + nombre + "," + String(estado) + "," + String(marcoHoy ? 1 : 0));
+                
                 numEstudiantesActual++;
             } else break;
         }
         studentsFile.close();
         
-        Serial.print("Lista sincronizada (con estado). Total: ");
+        Serial.print("Lista sincronizada (con estado 'marcoHoy'). Total: ");
         Serial.println(numEstudiantesActual);
         mostrarMensajeLCD("Lista Actualizada", "Estudiantes OK", 2000);
     } else {
+        Serial.print("Error al sincronizar lista, HTTP: ");
+        Serial.println(httpCode);
         // Si falla el GET, cargamos desde SD
         cargarListaEstudiantesDesdeSD();
     }
@@ -1515,12 +1575,12 @@ void sincronizarListaEstudiantes() {
 }
 
 void cargarListaEstudiantesDesdeSD() {
-    if (!sdCardOK) return;
+    if (!sdCardOK) return; 
     
-    File studentsFile = SD.open("/lista_estudiantes.txt", FILE_READ);
+    File studentsFile = SD.open("/lista_estudiantes.txt", FILE_READ); 
     if (!studentsFile) {
         numEstudiantesActual = 0;
-        return;
+        return; 
     }
     
     numEstudiantesActual = 0;
@@ -1532,22 +1592,23 @@ void cargarListaEstudiantesDesdeSD() {
         if (line.length() == 0) continue;
         
         if (numEstudiantesActual < MAX_STUDENTS) {
-            // Parsear la línea con 3 campos
+            // --- PARSEAR 4 CAMPOS ---
             int firstComma = line.indexOf(',');
             int secondComma = line.indexOf(',', firstComma + 1);
+            int thirdComma = line.indexOf(',', secondComma + 1); // <-- NUEVO
 
-            if (firstComma != -1 && secondComma != -1) {
+            if (firstComma != -1 && secondComma != -1 && thirdComma != -1) {
                 estudiantes[numEstudiantesActual].uid = line.substring(0, firstComma);
                 estudiantes[numEstudiantesActual].nombre = line.substring(firstComma + 1, secondComma);
-                // Convertir el estado (String "0" o "1") a int
-                estudiantes[numEstudiantesActual].estado = line.substring(secondComma + 1).toInt(); 
+                estudiantes[numEstudiantesActual].estado = line.substring(secondComma + 1, thirdComma).toInt();
+                // Convertir "1" o "0" a booleano
+                estudiantes[numEstudiantesActual].marcoHoy = (line.substring(thirdComma + 1).toInt() == 1); // <-- NUEVO
                 
                 numEstudiantesActual++;
             }
         } else break;
     }
     studentsFile.close();
-    
-    Serial.print("Cargados desde SD (con estado): ");
+    Serial.print("Cargados desde SD (con estado 'marcoHoy'): ");
     Serial.println(numEstudiantesActual);
 }

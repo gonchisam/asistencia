@@ -278,7 +278,7 @@ class AsistenciaController extends Controller
                     'fecha_hora' => $fecha->copy()->setTimeFromTimeString($hora),
                     'accion' => 'ENTRADA',
                     'modo' => 'OFFLINE',
-                    'estado_llegada' => $this->calcularEstadoLlegada($periodo->id, $fecha->copy()->setTimeFromTimeString($hora)),
+                    'estado_llegada' => $this->horarioService->calcularEstadoLlegada($periodo->id, $fecha->copy()->setTimeFromTimeString($hora)),
                     'periodo_id' => $periodo->id,
                     'curso_id' => $clase ? $clase->curso_id : null,
                 ]);
@@ -454,7 +454,7 @@ class AsistenciaController extends Controller
         }
 
         // 7. CALCULAR ESTADO DE LLEGADA
-        $estadoLlegada = $this->calcularEstadoLlegada($estado['periodo_id'], $now);
+        $estadoLlegada = $this->horarioService->calcularEstadoLlegada($estado['periodo_id'], $now);
 
         // 8. REGISTRAR ASISTENCIA
         $asistencia = Asistencia::create([
@@ -547,7 +547,7 @@ class AsistenciaController extends Controller
                     'fecha_hora' => $fecha_hora,
                     'periodo_id' => $periodo ? $periodo->id : null, // <-- MEJORADO
                     'curso_id' => null,
-                    'estado_llegada' => $periodo ? $this->calcularEstadoLlegada($periodo->id, $fecha_hora) : null, // <-- MEJORADO
+                    'estado_llegada' => $periodo ? $this->horarioService->calcularEstadoLlegada($periodo->id, $fecha_hora) : null, // <-- MEJORADO
                 ]);
 
                 $storedCount++;
@@ -620,7 +620,7 @@ class AsistenciaController extends Controller
                 'fecha_hora' => Carbon::now(),
                 'accion' => 'ENTRADA',
                 'modo' => 'ONLINE',
-                'estado_llegada' => $this->calcularEstadoLlegada($periodoActual->id, Carbon::now()),
+                'estado_llegada' => $this->horarioService->calcularEstadoLlegada($periodoActual->id, Carbon::now()),
                 'periodo_id' => $periodoActual->id,
                 'curso_id' => $claseActual->curso_id,
             ]);
@@ -641,26 +641,4 @@ class AsistenciaController extends Controller
         }
     }
 
-    /**
-     * HELPER (SIN CAMBIOS)
-     */
-    private function calcularEstadoLlegada($periodoId, Carbon $horaLlegada)
-    {
-        $periodo = Periodo::find($periodoId);
-        
-        if (!$periodo) {
-            return 'desconocido';
-        }
-
-        $horaInicio = Carbon::parse($periodo->hora_inicio);
-        $horaFinTolerancia = $horaInicio->copy()->addMinutes($periodo->tolerancia_ingreso_minutos);
-
-        if ($horaLlegada <= $horaInicio) {
-            return 'a_tiempo';
-        } elseif ($horaLlegada <= $horaFinTolerancia) {
-            return 'tarde';
-        } else {
-            return 'falta';
-        }
-    }
 }

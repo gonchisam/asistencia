@@ -5,15 +5,29 @@ namespace App\Http\Controllers;
 use App\Models\Asistencia;
 use App\Models\Estudiante;
 use App\Models\Curso;      
-use App\Models\Materia;    
+use App\Models\Materia;
+use App\Models\DiaNoLaborable;
 use Illuminate\Http\Request;
-use Carbon\Carbon;      
+use Carbon\Carbon;   
 
 class DashboardController extends Controller
 {
-    // Tu método index() se queda exactamente igual
     public function index(Request $request)
     {
+        // --- NUEVA LÓGICA: DETECTAR EVENTO DE HOY ---
+        $fechaHoy = Carbon::now()->toDateString();
+        
+        $eventoHoy = DiaNoLaborable::where(function($query) use ($fechaHoy) {
+            // Caso A: Fecha exacta
+            $query->where('fecha', $fechaHoy)
+            // Caso B: Recurrente (Mismo día y mes)
+                  ->orWhere(function($q) use ($fechaHoy) {
+                      $q->where('recurrente', true)
+                        ->whereRaw("DATE_FORMAT(fecha, '%m-%d') = DATE_FORMAT(?, '%m-%d')", [$fechaHoy]);
+                  });
+        })->first();
+        // ---------------------------------------------
+
         // 1. Definir los filtros
         $filters = $request->only([
             'uid', 'carrera', 'año', 'fecha_desde', 'fecha_hasta', 
@@ -89,13 +103,12 @@ class DashboardController extends Controller
         });
         $materias = Materia::orderBy('nombre')->get(['id', 'nombre']);
 
-        // 5. Retornar la vista principal
+        // 5. Retornar la vista principal CON LA VARIABLE eventoHoy
         return view('dashboard', compact(
-            'asistencias', 'carreras', 'años', 'cursos', 'materias', 'isFiltered'
+            'asistencias', 'carreras', 'años', 'cursos', 'materias', 'isFiltered', 'eventoHoy'
         ));
     }
 
-    // --- ¡NUEVO MÉTODO PARA POLLING! ---
     public function fetchAsistenciaTabla(Request $request)
     {
         // 1. Definir los filtros (copiado de index)

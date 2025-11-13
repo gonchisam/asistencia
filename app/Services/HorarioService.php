@@ -265,4 +265,33 @@ class HorarioService
                           ->whereDate('fecha_hora', $fecha)
                           ->exists();
     }
+
+    public function calcularEstadoLlegada($periodoId, Carbon $horaLlegada)
+    {
+        $periodo = Periodo::find($periodoId);
+        
+        if (!$periodo) {
+            return 'desconocido'; // Estado por defecto si no hay periodo
+        }
+
+        $horaInicio = Carbon::parse($periodo->hora_inicio);
+        $horaFinTolerancia = $horaInicio->copy()->addMinutes($periodo->tolerancia_ingreso_minutos);
+
+        // --- INICIO DE LA CORRECCIÓN ---
+        
+        // Si la hora de llegada es ANTES o IGUAL al fin de la tolerancia,
+        // se considera 'a_tiempo'.
+        if ($horaLlegada <= $horaFinTolerancia) {
+            return 'a_tiempo';
+        } 
+        
+        // Si la hora de llegada es DESPUÉS de la tolerancia, se marca 'tarde'.
+        // (El servicio HorarioService::verificarEstadoAsistencia ya evita 
+        // que esto pase en tiempo real, pero el modo 'offline' sí podría registrarlo)
+        else {
+            return 'tarde';
+        }
+        
+        // --- FIN DE LA CORRECCIÓN ---
+    }
 }

@@ -223,8 +223,8 @@ class MovilController extends Controller
         // --- FIN VERIFICACIÓN DE DUPLICADOS ---
 
         // 4. VERIFICAR GEOLOCALIZACIÓN
-        $targetLat = (float) config('app.target_latitud', -17.33672);
-        $targetLng = (float) config('app.target_longitud', -66.1972);
+        $targetLat = (float) config('app.target_latitud', -17.39567);
+        $targetLng = (float) config('app.target_longitud', -66.15814);
         $targetRadio = (float) config('app.target_radio_metros', 40);
         $distancia = $this->calcularDistanciaHaversine(
             $data['latitud'], $data['longitud'],
@@ -240,16 +240,27 @@ class MovilController extends Controller
         }
 
         // 5. GUARDAR ASISTENCIA
+        // 5. GUARDAR ASISTENCIA
+        $now = now(); // Capturamos la hora actual en una variable
+
         $asistencia = Asistencia::create([
             'uid' => $estudiante->uid,
             'nombre' => $estudiante->nombreCompleto,
             'accion' => $data['accion'],
             'modo' => 'MOVIL', 
-            'fecha_hora' => now(),
+            'fecha_hora' => $now, // Usamos la hora capturada
             'curso_id' => $verificacion['curso_id'],
             'periodo_id' => $verificacion['periodo_id'],
-            'estado_llegada' => 'a_tiempo'
+            
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Llamamos al servicio para obtener el estado correcto
+            'estado_llegada' => $this->horarioService->calcularEstadoLlegada(
+                $verificacion['periodo_id'], 
+                $now // Pasamos la misma hora de la marca
+            )
+            // --- FIN DE LA CORRECCIÓN ---
         ]);
+        
         Log::info("Asistencia MOVIL registrada: UID {$estudiante->uid}, CursoID: {$asistencia->curso_id}, Distancia: {$distancia}m");
 
         return response()->json([

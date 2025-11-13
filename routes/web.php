@@ -11,6 +11,7 @@ use App\Http\Controllers\AulaController;
 use App\Http\Controllers\PeriodoController;
 use App\Http\Controllers\MateriaController;
 use App\Http\Controllers\CursoController;
+use App\Http\Controllers\CalendarioController;
 
 /*
 |--------------------------------------------------------------------------
@@ -105,6 +106,10 @@ Route::middleware('auth')->group(function () {
         // Gestión de Estudiantes de un Curso
         Route::post('cursos/{curso}/estudiantes', [CursoController::class, 'storeEstudiante'])->name('cursos.estudiantes.store');
         Route::delete('cursos/{curso}/estudiantes/{estudiante}', [CursoController::class, 'destroyEstudiante'])->name('cursos.estudiantes.destroy');
+
+        // === RUTAS DEL CALENDARIO (Corregidas) ===
+        Route::get('/calendario', [CalendarioController::class, 'index'])->name('calendario.index');
+        Route::post('/calendario', [CalendarioController::class, 'store'])->name('calendario.store');
     });
 });
 

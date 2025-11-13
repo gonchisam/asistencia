@@ -58,16 +58,16 @@
             <header class="bg-white shadow-2xl border-b border-gray-200 p-4">
                 <div class="container mx-auto flex justify-between items-center">
                     {{-- Logo y título --}}
-                    <div class="flex items-center space-x-4">
-                        <div class="bg-blue-600 rounded-xl p-3 shadow-lg">
-                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                            </svg>
-                        </div>
-                        <h1 class="text-3xl font-extrabold text-gray-900">
-                            <span class="text-blue-600">SACA</span> <span class="text-gray-700">Asistencia</span>
+                    {{-- Logo y título --}}
+                    <a href="{{ route('dashboard') }}" class="flex items-center space-x-3 transition-transform duration-200 hover:scale-105">
+                        {{-- Logo Interactivo --}}
+                        <img src="{{ asset('img/logoincos.png') }}" alt="Logo INCOS" class="h-14 w-auto">
+                        
+                        {{-- Título (se mantiene "Asistencia") --}}
+                        <h1 class="text-3xl font-extrabold text-gray-700">
+                            
                         </h1>
-                    </div>
+                    </a>
 
                     {{-- Navegación principal --}}
                     <nav class="flex-1 mx-8">
@@ -140,6 +140,9 @@
                                     </a>
                                     <a href="{{ route('admin.aulas.index') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition duration-150 ease-in-out {{ request()->routeIs('admin.aulas.*') ? 'bg-blue-50 text-blue-600' : '' }}">
                                         Aulas
+                                    </a>
+                                    <a href="{{ route('admin.calendario.index') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition duration-150 ease-in-out {{ request()->routeIs('admin.calendario.*') ? 'bg-blue-50 text-blue-600' : '' }}">
+                                        Calendario
                                     </a>
                                 </div>
                             </li>
