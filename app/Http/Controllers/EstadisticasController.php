@@ -3,7 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Services\EstadisticasService;
-use Illuminate\Http\Request; // Asegúrate que Request esté importado
+use App\Models\GestionAcademica; // <--- IMPORTANTE: Importar el modelo
+use Illuminate\Http\Request;
 
 class EstadisticasController extends Controller
 {
@@ -14,43 +15,50 @@ class EstadisticasController extends Controller
         $this->estadisticasService = $estadisticasService;
     }
 
-    // app/Http/Controllers/EstadisticasController.php
+    public function index(Request $request)
+    {
+        // 1. Obtener todas las gestiones para el filtro (Select)
+        $gestiones = GestionAcademica::orderBy('fecha_inicio', 'desc')->get();
 
-public function index(Request $request) // Asegúrate de que 'Request $request' esté aquí
-{
-    // Obtener fechas del request
-    $fechaInicio = $request->input('fecha_inicio');
-    $fechaFin = $request->input('fecha_fin');
+        // 2. Lógica de Fechas Inteligente
+        $fechaInicio = $request->input('fecha_inicio');
+        $fechaFin = $request->input('fecha_fin');
+        $gestionId = $request->input('gestion_id');
 
-    // === INICIO DE LA VERIFICACIÓN ===
-    //
-    // Asegúrate de que ($fechaInicio, $fechaFin) se pasen a LAS TRES llamadas:
+        // Si el usuario seleccionó una gestión específica, sobrescribimos las fechas
+        if ($gestionId) {
+            $gestionSeleccionada = $gestiones->find($gestionId);
+            if ($gestionSeleccionada) {
+                $fechaInicio = $gestionSeleccionada->fecha_inicio->format('Y-m-d');
+                $fechaFin = $gestionSeleccionada->fecha_fin->format('Y-m-d');
+            }
+        } 
+        // Si no hay fechas ni gestión seleccionada, usar la Gestión ACTIVA por defecto
+        elseif (!$fechaInicio && !$fechaFin) {
+            $gestionActiva = $gestiones->where('actual', true)->first();
+            if ($gestionActiva) {
+                $fechaInicio = $gestionActiva->fecha_inicio->format('Y-m-d');
+                $fechaFin = $gestionActiva->fecha_fin->format('Y-m-d');
+                $gestionId = $gestionActiva->id; // Para que el select aparezca marcado
+            }
+        }
 
-    $asistenciaDiaria = $this->estadisticasService->getAsistenciaDiariaSemanalMensual($fechaInicio, $fechaFin);
-    
-    $horasPico = $this->estadisticasService->getDistribucionHorasPico($fechaInicio, $fechaFin);
-    
-    $asistenciaPorCarrera = $this->estadisticasService->getAsistenciaPorCarreraYAnio($fechaInicio, $fechaFin);
-    
-    // (Esta también, aunque es para el Punto 4)
-    $estudiantesEnRiesgo = $this->estadisticasService->getEstudiantesEnRiesgo($fechaInicio, $fechaFin);
+        // 3. Generar Estadísticas con las fechas finales
+        $asistenciaDiaria = $this->estadisticasService->getAsistenciaDiariaSemanalMensual($fechaInicio, $fechaFin);
+        $horasPico = $this->estadisticasService->getDistribucionHorasPico($fechaInicio, $fechaFin);
+        $asistenciaPorCarrera = $this->estadisticasService->getAsistenciaPorCarreraYAnio($fechaInicio, $fechaFin);
+        $estudiantesEnRiesgo = $this->estadisticasService->getEstudiantesEnRiesgo($fechaInicio, $fechaFin);
 
-    // === FIN DE LA VERIFICACIÓN ===
-
-
-    // Convertir los datos a arrays para la exportación y la vista
-    $asistenciaDiaria = json_decode(json_encode($asistenciaDiaria), true);
-    $horasPico = json_decode(json_encode($horasPico), true);
-    $asistenciaPorCarrera = json_decode(json_encode($asistenciaPorCarrera), true);
-
-    // Devolver las fechas a la vista para que los inputs las recuerden
-    return view('estadisticas.index', compact(
-        'asistenciaDiaria', 
-        'horasPico', 
-        'asistenciaPorCarrera', 
-        'estudiantesEnRiesgo',
-        'fechaInicio',
-        'fechaFin'
-    ));
-}
+        // 4. Retornar a la vista con todo
+        return view('estadisticas.index', compact(
+            'asistenciaDiaria', 
+            'horasPico', 
+            'asistenciaPorCarrera', 
+            'estudiantesEnRiesgo',
+            'fechaInicio',
+            'fechaFin',
+            'gestiones', // <--- Enviamos la lista
+            'gestionId'  // <--- Enviamos la selección actual
+        ));
+    }
 }
