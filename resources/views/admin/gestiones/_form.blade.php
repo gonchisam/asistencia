@@ -42,19 +42,7 @@
         </p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="bg-white p-4 rounded border border-blue-100">
-                <h4 class="font-bold text-md text-gray-700 mb-3 flex items-center gap-2">🎭 Feriado de Carnaval</h4>
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 uppercase">Lunes de Carnaval</label>
-                        <input type="date" name="lunes_carnaval" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 uppercase">Martes de Carnaval</label>
-                        <input type="date" name="martes_carnaval" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
-                </div>
-            </div>
+            
 
             <div class="bg-white p-4 rounded border border-blue-100">
                 <h4 class="font-bold text-md text-gray-700 mb-3 flex items-center gap-2">❄️ Vacación de Invierno</h4>

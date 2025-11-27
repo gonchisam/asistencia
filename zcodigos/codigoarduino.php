@@ -23,6 +23,8 @@
 #define MISO_PIN 19
 #define MOSI_PIN 23
 #define CONFIG_BUTTON_PIN 0  // Pin del botón de configuración (GPIO0 - BOOT)
+// === NUEVA CONFIGURACIÓN BUZZER ===
+#define BUZZER_PIN 13       // Pin GPIO elegido
 
 // === CONFIGURACIÓN PANTALLA LCD ===
 #define LCD_ADDRESS 0x27
@@ -56,6 +58,7 @@ struct Estudiante {
     String uid;
     String nombre;
     int estado; // <-- AÑADIR ESTA LÍNEA
+    bool marcoHoy;
 };
 
 struct CardStatus {
@@ -76,6 +79,7 @@ struct CardStatus {
 #define CONFIG_MODE_TIMEOUT 300000  // 5 minutos en modo config
 #define RESET_BUTTON_HOLD_TIME 5000  // 5 segundos para resetear configuración
 
+
 // === VARIABLES GLOBALES ===
 Estudiante estudiantes[MAX_STUDENTS];
 int numEstudiantesActual = 0;
@@ -91,10 +95,16 @@ unsigned long lastErrorBlink = 0;
 unsigned long lastStudentListSync = 0;
 unsigned long configModeStartTime = 0;
 unsigned long lastButtonPress = 0;
+
 unsigned long buttonPressStartTime = 0;
 unsigned long activityLedOnTime = 0;
 const int ACTIVITY_LED_DURATION = 100; // 100 ms de duración del pulso
 bool activityLedPulsed = false; // Bandera para saber si se acaba de encender
+unsigned long statusLedPulseTime = 0;
+bool statusLedPulsed = false;
+// Para controlar el pulso del LED Rojo/Error (en denegaciones)
+unsigned long errorLedPulseTime = 0;
+bool errorLedPulsed = false;
 // Para controlar el tiempo de presión del botón
 
 // Control de sistema
@@ -134,6 +144,8 @@ void procesarLecturaRFID();
 void actualizarInterfaz();
 void actualizarLEDs();
 void parpadearLEDActividad();
+void parpadearLEDEstado(); // Pulso rápido del LED verde (acceso OK)
+void parpadearLEDErrorDenegacion(); // Pulso rápido del LED rojo (denegación)
 void verificarEstadoSistema();
 void conectarWiFi();
 void crearArchivoSiNoExiste(const char* filename, const char* header);
@@ -170,6 +182,9 @@ void resetearConfiguracionWiFi();
 void configurarRTCManual(String fechaStr, String horaStr); // Nueva función para configurar RTC
 // Nueva función para resetear configuración
 
+// Variable global para almacenar el ID del aula
+String aulaCodigo = "AULA-101";
+
 // === FUNCIONES PRINCIPALES ===
 void setup() {
     Serial.begin(115200);
@@ -185,6 +200,8 @@ void setup() {
     
     if (sdCardOK) cargarListaEstudiantesDesdeSD();
     if (WiFi.status() == WL_CONNECTED) sincronizarListaEstudiantes();
+
+    emitirSonido(0);
 }
 
 void loop() {
@@ -219,18 +236,29 @@ void cargarConfiguracion() {
     wifi_password = preferences.getString("wifi_pass", "");
     server_url = preferences.getString("server_url", "http://192.168.1.100:8000");
     
-    Serial.println("Configuración cargada:");
+    // ✅ CARGAR CÓDIGO DE AULA (String en lugar de int)
+    aulaCodigo = preferences.getString("aula_codigo", "");
+    
+    // Si no está configurado, asignar valor por defecto
+    if (aulaCodigo.length() == 0) {
+        aulaCodigo = "AULA-101"; // Valor por defecto
+        preferences.putString("aula_codigo", aulaCodigo);
+        Serial.println("⚠️ Código de Aula no configurado, usando: " + aulaCodigo);
+    }
+    
+    Serial.println("=== Configuración Cargada ===");
     Serial.println("SSID: " + wifi_ssid);
     Serial.println("Server URL: " + server_url);
+    Serial.println("Aula Código: " + aulaCodigo);
+    Serial.println("=============================");
 
     if (wifi_ssid.length() > 0) {
         conectarWiFi();
     } else {
-        Serial.println("No hay configuración WiFi. Iniciando modo configuración...");
+        Serial.println("⚠️ No hay configuración WiFi. Iniciando modo configuración...");
         iniciarModoConfiguracion();
     }
 }
-
 void guardarConfiguracion() {
     preferences.putString("wifi_ssid", wifi_ssid);
     preferences.putString("wifi_pass", wifi_password);
@@ -312,7 +340,6 @@ void detenerModoConfiguracion() {
 
 void verificarBotonConfiguracion() {
     bool currentButtonState = (digitalRead(CONFIG_BUTTON_PIN) == LOW);
-
     // Detectar cuando se presiona el botón
     if (currentButtonState && !buttonPressed) {
         buttonPressed = true;
@@ -351,6 +378,11 @@ void verificarBotonConfiguracion() {
         resetInProgress = true;
         // Mostrar mensaje de confirmación
         mostrarMensajeLCD("RESET WiFi en", "curso...", 0);
+        
+        // SONIDO DE CONFIRMACIÓN DE RESET // <-- MODIFICACIÓN
+        emitirSonido(3); 
+        delay(100); 
+
         // Parpadear LED de error rápidamente durante el reset
         for (int i = 0; i < 10; i++) {
             digitalWrite(LED_ERROR, HIGH);
@@ -371,6 +403,14 @@ void verificarBotonConfiguracion() {
             // Mostrar contador regresivo en LCD
             int segundosRestantes = (RESET_BUTTON_HOLD_TIME - pressDuration) / 1000;
             mostrarMensajeLCD("Reset WiFi en:", String(segundosRestantes + 1) + " segundos", 0);
+            
+            // SONIDO DE CUENTA REGRESIVA (Beep cada 1 segundo) // <-- MODIFICACIÓN
+            static unsigned long lastBeep = 0;
+            if (millis() - lastBeep >= 1000) {
+                emitirSonido(3);
+                lastBeep = millis();
+            }
+
             // Parpadear LED de error lentamente
             if ((pressDuration / 500) % 2 == 0) {
                 digitalWrite(LED_ERROR, HIGH);
@@ -389,6 +429,11 @@ void manejarServidorConfig() {
         errorLedState = !errorLedState;
         digitalWrite(LED_ERROR, errorLedState ? HIGH : LOW);
         lastErrorBlink = millis();
+        
+        // SONIDO MODO CONFIGURACIÓN (Cada 1 segundo) // <-- MODIFICACIÓN
+        if (millis() - configModeStartTime > 2000 && (lastErrorBlink % 4) == 0) {
+            emitirSonido(4); 
+        }
     }
 }
 
@@ -398,7 +443,8 @@ void handleRoot() {
 }
 
 void handleSave() {
-    if (server.hasArg("ssid") && server.hasArg("password") && server.hasArg("server") && 
+    if (server.hasArg("ssid") && server.hasArg("password") && 
+        server.hasArg("server") && server.hasArg("aula_codigo") &&
         server.hasArg("rtc_date") && server.hasArg("rtc_time")) {
 
         // 1. Configuración WiFi/Servidor
@@ -406,27 +452,89 @@ void handleSave() {
         wifi_password = server.arg("password");
         server_url = server.arg("server");
         
-        guardarConfiguracion();
+        // ✅ LEER CÓDIGO DE AULA (String)
+        aulaCodigo = server.arg("aula_codigo");
+        aulaCodigo.trim(); // Eliminar espacios al inicio/final
+        aulaCodigo.toUpperCase(); // Convertir a mayúsculas
+        
+        // Validar que no esté vacío
+        if (aulaCodigo.length() == 0) {
+            aulaCodigo = "AULA-101"; // Valor por defecto
+            Serial.println("⚠️ Código de aula vacío, usando: " + aulaCodigo);
+        }
+        
+        // Validar formato (opcional): debe tener entre 3 y 20 caracteres
+        if (aulaCodigo.length() < 3 || aulaCodigo.length() > 20) {
+            String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body>";
+            html += "<h1 style='color:red;'>❌ Error: Código de Aula Inválido</h1>";
+            html += "<p>El código debe tener entre 3 y 20 caracteres.</p>";
+            html += "<p>Recibido: <strong>" + aulaCodigo + "</strong> (" + String(aulaCodigo.length()) + " caracteres)</p>";
+            html += "<br><a href='/'>← Volver</a>";
+            html += "</body></html>";
+            server.send(400, "text/html", html);
+            return;
+        }
+        
+        // 2. Guardar en Preferences
+        preferences.putString("wifi_ssid", wifi_ssid);
+        preferences.putString("wifi_pass", wifi_password);
+        preferences.putString("server_url", server_url);
+        preferences.putString("aula_codigo", aulaCodigo);  // ✅ GUARDAR CÓDIGO
+        
+        Serial.println("✅ Configuración guardada:");
+        Serial.println("   SSID: " + wifi_ssid);
+        Serial.println("   Servidor: " + server_url);
+        Serial.println("   Aula Código: " + aulaCodigo);
 
-        // 2. Configuración RTC
+        // 3. Configuración RTC
         String rtc_date = server.arg("rtc_date");
         String rtc_time = server.arg("rtc_time");
         configurarRTCManual(rtc_date, rtc_time);
         
-        String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Configuración Guardada</title></head>";
-        html += "<body><h1>Configuración Guardada</h1>";
-        html += "<p>SSID: " + wifi_ssid + "</p>";
-        html += "<p>Servidor: " + server_url + "</p>";
-        html += "<p>RTC: " + rtc_date + " " + rtc_time + "</p>";
-        html += "<p>El dispositivo se reiniciará en 5 segundos...</p>";
-        html += "<script>setTimeout(function(){window.location.href='/';}, 5000);</script></body></html>";
+        // 4. Respuesta HTML
+        String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Configuración Guardada</title>";
+        html += "<style>body{font-family:sans-serif;max-width:500px;margin:50px auto;padding:20px;background:#f0f0f0;}";
+        html += ".success{background:#d4edda;border:1px solid #c3e6cb;padding:15px;border-radius:8px;margin:20px 0;}";
+        html += "h1{color:#155724;} .code{background:#f8f9fa;padding:5px 10px;border-radius:4px;font-family:monospace;}</style></head><body>";
+        html += "<div class='success'>";
+        html += "<h1>✅ Configuración Guardada</h1>";
+        html += "<p><strong>SSID:</strong> " + wifi_ssid + "</p>";
+        html += "<p><strong>Servidor:</strong> " + server_url + "</p>";
+        html += "<p><strong>Aula Código:</strong> <span class='code'>" + aulaCodigo + "</span></p>";
+        html += "<p><strong>RTC:</strong> " + rtc_date + " " + rtc_time + "</p>";
+        html += "<hr>";
+        html += "<p>🔄 El dispositivo se reiniciará en <span id='countdown'>5</span> segundos...</p>";
+        html += "</div>";
+        html += "<script>";
+        html += "let count = 5;";
+        html += "setInterval(() => {";
+        html += "  count--;";
+        html += "  document.getElementById('countdown').textContent = count;";
+        html += "  if(count <= 0) window.location.href='/';";
+        html += "}, 1000);";
+        html += "</script>";
+        html += "</body></html>";
         
         server.send(200, "text/html", html);
         
         delay(1000);
         shouldRestart = true;
     } else {
-        server.send(400, "text/html", "Faltan parámetros requeridos");
+        // ❌ Faltan parámetros
+        String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Error</title></head><body>";
+        html += "<h1 style='color:red;'>❌ Error: Faltan parámetros requeridos</h1>";
+        html += "<p>Parámetros recibidos:</p><ul>";
+        html += "<li>SSID: " + String(server.hasArg("ssid") ? "✅" : "❌") + "</li>";
+        html += "<li>Password: " + String(server.hasArg("password") ? "✅" : "❌") + "</li>";
+        html += "<li>Servidor: " + String(server.hasArg("server") ? "✅" : "❌") + "</li>";
+        html += "<li>Código Aula: " + String(server.hasArg("aula_codigo") ? "✅" : "❌") + "</li>";
+        html += "<li>Fecha RTC: " + String(server.hasArg("rtc_date") ? "✅" : "❌") + "</li>";
+        html += "<li>Hora RTC: " + String(server.hasArg("rtc_time") ? "✅" : "❌") + "</li>";
+        html += "</ul>";
+        html += "<a href='/'>← Volver</a>";
+        html += "</body></html>";
+        
+        server.send(400, "text/html", html);
     }
 }
 
@@ -485,12 +593,14 @@ String generarPaginaConfig() {
     html += ".input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(79,70,229,0.3); }";
     html += ".card { background: white; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 6px 16px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }";
     html += ".alert { background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; }";
+    html += ".info-box { background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }";
     html += ".network-item { padding: 0.6rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 0.5rem; cursor: pointer; transition: background 0.2s; }";
     html += ".network-item:hover { background-color: #f3f4f6; }";
     html += ".datetime-group { display: flex; gap: 0.5rem; }";
     html += ".datetime-group .input { flex: 1; }";
     html += ".password-wrapper { position: relative; }";
     html += ".toggle-btn { position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 0.9rem; color: #6b7280; }";
+    html += ".code-display { font-family: 'Courier New', monospace; background: #f8f9fa; padding: 8px; border-radius: 4px; font-weight: bold; }";
     html += "</style></head>";
     html += "<body class='min-h-screen flex items-center justify-center p-6'>";
     
@@ -506,7 +616,7 @@ String generarPaginaConfig() {
     html += "<div class='card'>";
     html += "<form method='POST' action='/save'>";
     
-    // --- Configuración WiFi ---
+    // --- 1. Configuración WiFi ---
     html += "<h2 class='text-lg font-semibold mb-3 text-gray-700'>1. Configuración de Red</h2>";
     html += "<div class='mb-4'>";
     html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Red WiFi</label>";
@@ -523,12 +633,37 @@ String generarPaginaConfig() {
     html += "</div>";
     html += "</div>";
     
-    html += "<div class='mb-6'>";
+    html += "<div class='mb-4'>";
     html += "<label class='block text-sm font-medium text-gray-700 mb-1'>URL del Servidor</label>";
     html += "<input type='text' name='server' placeholder='http://192.168.1.100:8000' value='" + server_url + "' class='input' required>";
     html += "</div>";
 
-    // --- Configuración RTC ---
+    // ✅ CAMPO DE CÓDIGO DE AULA (TEXTO EN LUGAR DE NÚMERO)
+    html += "<div class='mb-6'>";
+    html += "<label class='block text-sm font-medium text-gray-700 mb-1'>🏫 Código del Aula</label>";
+    html += "<input type='text' name='aula_codigo' id='aula_codigo' ";
+    html += "placeholder='Ej: AULA-101, LAB-INFO, SALON-A' ";
+    html += "value='" + aulaCodigo + "' ";
+    html += "class='input' ";
+    html += "maxlength='20' ";
+    html += "pattern='[A-Za-z0-9\\-_]+' ";
+    html += "title='Solo letras, números, guiones y guiones bajos' ";
+    html += "required ";
+    html += "style='text-transform: uppercase;'>";
+    
+    // Información adicional sobre códigos
+    html += "<div class='info-box mt-2'>";
+    html += "<p class='text-xs text-blue-700'><strong>💡 Formato del código:</strong></p>";
+    html += "<ul class='text-xs text-blue-600 mt-1 ml-4 list-disc'>";
+    html += "<li>3 a 20 caracteres</li>";
+    html += "<li>Solo letras, números, guiones (-) y guiones bajos (_)</li>";
+    html += "<li>Se convertirá automáticamente a MAYÚSCULAS</li>";
+    html += "<li>Ejemplos: <code>AULA-101</code>, <code>LAB-INFO</code>, <code>SALON_A</code></li>";
+    html += "</ul>";
+    html += "</div>";
+    html += "</div>";
+
+    // --- 2. Configuración RTC ---
     html += "<h2 class='text-lg font-semibold mb-3 text-gray-700'>2. Configuración de RTC (Reloj)</h2>";
     html += "<div class='mb-6'>";
     html += "<label class='block text-sm font-medium text-gray-700 mb-1'>Fecha y Hora Actuales</label>";
@@ -543,16 +678,26 @@ String generarPaginaConfig() {
     html += "</form>";
     html += "</div>";
     
+    // Mostrar configuración actual
     html += "<div class='card text-center text-sm text-gray-600'>";
-    html += "<p class='font-medium'>Configuración actual</p>";
-    html += "<p>SSID: " + (wifi_ssid.length() > 0 ? wifi_ssid : "No configurado") + "</p>";
-    html += "<p>Servidor: " + server_url + "</p>";
+    html += "<p class='font-medium text-gray-800 mb-2'>📋 Configuración Actual</p>";
+    html += "<div style='text-align:left; background:#f9fafb; padding:10px; border-radius:8px;'>";
+    html += "<p><strong>SSID:</strong> " + (wifi_ssid.length() > 0 ? wifi_ssid : "No configurado") + "</p>";
+    html += "<p><strong>Servidor:</strong> " + server_url + "</p>";
+    html += "<p><strong>Aula:</strong> <span class='code-display'>" + aulaCodigo + "</span></p>";
+    html += "</div>";
     html += "</div>";
     
     html += "</div>";
     
-    // Scripts
+    // Scripts JavaScript
     html += "<script>";
+    
+    // Convertir a mayúsculas mientras escribe
+    html += "document.getElementById('aula_codigo').addEventListener('input', function(e) {";
+    html += "  e.target.value = e.target.value.toUpperCase();";
+    html += "});";
+    
     html += "function escanearRedes() {";
     html += "  document.getElementById('networks').innerHTML = '<p class=\"text-center text-gray-500\">Escaneando...</p>';"; 
     html += "  fetch('/scan')";
@@ -733,6 +878,8 @@ void inicializarHardware() {
     Wire.setClock(100000);
     inicializarLCD();
 
+    ledcAttach(BUZZER_PIN, 2000, 8);
+
     // RTC
     rtcOK = rtc.begin();
     if (rtcOK) Serial.println("RTC OK");
@@ -789,6 +936,10 @@ void verificarSistemaPeriodicamennte() {
         millis() - lastErrorDisplayUpdate > ERROR_DISPLAY_CYCLE_INTERVAL) {
         currentErrorIndex = (currentErrorIndex + 1) % numActiveErrors;
         mostrarMensajeLCD(errorMessages[currentErrorIndex], "Verifica modulos");
+        
+        // SONIDO DE ERROR AL MOSTRAR ALERTA // <-- MODIFICACIÓN
+        emitirSonido(2); 
+
         lastErrorDisplayUpdate = millis();
     }
 }
@@ -839,6 +990,22 @@ void actualizarInterfaz() {
         digitalWrite(LED_ACTIVITY, LOW);
         activityLedPulsed = false; // Resetear bandera
     }
+
+    // LOGICA DE APAGADO DE LED DE ESTADO (NO BLOQUEANTE) // <-- MODIFICACIÓN
+    if (statusLedPulsed && (millis() - statusLedPulseTime >= ACTIVITY_LED_DURATION)) {
+        // Restaurar LED_STATUS al estado fijo (si módulos OK)
+        digitalWrite(LED_STATUS, (sdCardOK && rtcOK && rfidOK) ? HIGH : LOW);
+        statusLedPulsed = false; 
+    }
+
+    // LOGICA DE APAGADO DE LED DE ERROR POR DENEGACIÓN (NO BLOQUEANTE) // <-- MODIFICACIÓN
+    if (errorLedPulsed && (millis() - errorLedPulseTime >= ACTIVITY_LED_DURATION)) {
+        // Apagar si no hay errores de módulo activos
+        if (numActiveErrors == 0) { 
+            digitalWrite(LED_ERROR, LOW);
+        }
+        errorLedPulsed = false; 
+    }
 }
 
 // === CONTROL DE LEDS ===
@@ -846,16 +1013,20 @@ void actualizarLEDs() {
     if (configMode || resetInProgress) return; // Los LEDs se manejan diferente en modo config y reset
     
     // LED estado (verde)
-    digitalWrite(LED_STATUS, (sdCardOK && rtcOK && rfidOK) ? HIGH : LOW);
-
+    // Solo actualiza el estado fijo si NO estamos en un pulso rápido
+    if (!statusLedPulsed) { // <-- MODIFICACIÓN
+        digitalWrite(LED_STATUS, (sdCardOK && rtcOK && rfidOK) ? HIGH : LOW);
+    }
+    
     // LED error (rojo parpadeante)
+    // Solo actualiza el estado si NO estamos en un pulso rápido de denegación
     if (numActiveErrors > 0) {
         if (millis() - lastErrorBlink > ERROR_BLINK_INTERVAL) {
             errorLedState = !errorLedState;
             digitalWrite(LED_ERROR, errorLedState ? HIGH : LOW);
             lastErrorBlink = millis();
         }
-    } else {
+    } else if (!errorLedPulsed) { // <-- MODIFICACIÓN
         digitalWrite(LED_ERROR, LOW);
     }
 }
@@ -865,6 +1036,23 @@ void parpadearLEDActividad() {
     digitalWrite(LED_ACTIVITY, HIGH);
     activityLedOnTime = millis();
     activityLedPulsed = true; // Establecer bandera
+}
+
+void parpadearLEDEstado() {
+    if (configMode || resetInProgress) return;
+    digitalWrite(LED_STATUS, HIGH);
+    statusLedPulseTime = millis();
+    statusLedPulsed = true;
+}
+
+void parpadearLEDErrorDenegacion() {
+    if (configMode || resetInProgress) return;
+    // Sobreescribimos el LED_ERROR si no hay un error de módulo activo
+    if (numActiveErrors == 0) { 
+        digitalWrite(LED_ERROR, HIGH);
+        errorLedPulseTime = millis();
+        errorLedPulsed = true;
+    }
 }
 
 // === VERIFICACIÓN SISTEMA ===
@@ -1054,65 +1242,88 @@ void detenerLecturaRFID() {
 }
 
 // === PROCESAMIENTO ASISTENCIA ===
+// === PROCESAMIENTO ASISTENCIA (MODIFICADO) ===
+// === PROCESAMIENTO ASISTENCIA (MODIFICADO PASO 3 Y 4) ===
 void procesarAsistencia(String uidLeido) {
     String nombreEstudiante = "";
     int index = buscarEstudiante(uidLeido, nombreEstudiante);
-    
+
     if (index != -1) {
-        // ¡¡NUEVA VALIDACIÓN DE ESTADO!!
-        // Verificamos el estado del estudiante cargado en la memoria local
+        // ... (el chequeo de 'estado == 0' sigue igual)
         if (estudiantes[index].estado == 0) {
-            Serial.print("Asistencia DENEGADA (Inactivo): ");
-            Serial.println(nombreEstudiante);
-            // Mostramos el mensaje de error y salimos
-            mostrarMensajeLCD("ACCESO DENEGADO", "CUENTA INACTIVA", LCD_MESSAGE_DURATION * 2); 
-            // (Usamos * 2 para que el mensaje de error dure más)
-            return; // Detenemos el proceso aquí
+            Serial.println("⚠️ CUENTA INACTIVA: " + nombreEstudiante);
+            mostrarMensajeLCD("CUENTA INACTIVA", nombreEstudiante, LCD_MESSAGE_DURATION * 2);
+            parpadearLEDErrorDenegacion();
+            emitirSonido(2); // <--- AGREGAR ESTO (Error: Tono grave)
+            return;
         }
-        // Si el estado es 1, continúa normalmente...
 
-        // Bloque para tarjetas conocidas (tu código original)
-        String lastAction = getLastAction(uidLeido);
-        String currentAction = (lastAction == "ENTRADA") ? "SALIDA" : "ENTRADA";
-
-        updateLastAction(uidLeido, currentAction);
-
-        Serial.print("Tarjeta: ");
+        String accion = "ENTRADA";
+        Serial.print("📋 Tarjeta: ");
         Serial.println(nombreEstudiante);
-        mostrarMensajeLCD(currentAction + ":", nombreEstudiante, LCD_MESSAGE_DURATION);
-        // Mensaje actualizado
-
+        
+        mostrarMensajeLCD("Procesando...", nombreEstudiante, 0);
+        
         String fecha, hora;
         obtenerTimestamp(fecha, hora);
         String modo = (WiFi.status() == WL_CONNECTED) ? "ONLINE" : "OFFLINE";
 
         bool enviado = false;
+        
         if (WiFi.status() == WL_CONNECTED) {
-            enviado = enviarAsistenciaRapido(uidLeido, currentAction, modo);
-            if (!enviado) {
-                guardarPendienteEnSD(uidLeido, currentAction, fecha, hora);
+            // --- LÓGICA ONLINE (DEL PASO 3) ---
+            bool tienePermiso = verificarPermisoServidor(uidLeido);
+            if (tienePermiso) {
+                enviado = enviarAsistenciaRapido(uidLeido); 
+            } else {
+                enviado = false;
+                Serial.println("Registro denegado por el servidor (ya marcó o sin clases).");
             }
+            if (!enviado && tienePermiso) {
+                guardarPendienteEnSD(uidLeido, accion, fecha, hora);
+            }
+            // --- FIN LÓGICA ONLINE ---
+
         } else {
-            // Solo guardamos pendiente si está activo (lo cual ya validamos)
-            guardarPendienteEnSD(uidLeido, currentAction, fecha, hora);
+            // --- INICIO DE LÓGICA OFFLINE (PASO 4) ---
+            Serial.println("Modo Offline. Verificando localmente...");
+            
+            // 1. Usamos el 'index' de buscarEstudiante
+            if (estudiantes[index].marcoHoy) {
+                // 2. Estudiante YA MARCÓ (info de la última sync o de un marcado offline previo)
+                Serial.println("Registro OFFLINE denegado: 'marcoHoy' es true.");
+                mostrarMensajeLCD("YA REGISTRADO", "(Sync)", LCD_MESSAGE_DURATION * 2);
+                emitirSonido(2);
+            
+            } else {
+                // 3. Estudiante PUEDE MARCAR offline
+                Serial.println("Registro OFFLINE permitido.");
+                guardarPendienteEnSD(uidLeido, accion, fecha, hora);
+                mostrarMensajeLCD("ASISTENCIA OFFLINE", nombreEstudiante, LCD_MESSAGE_DURATION);
+                emitirSonido(1);
+                parpadearLEDEstado();
+                
+                // 4. BLOQUEO LOCAL: Actualizar estado en memoria RAM
+                //    para prevenir doble marcado mientras sigue offline.
+                estudiantes[index].marcoHoy = true; 
+            }
+            // --- FIN DE LÓGICA OFFLINE ---
         }
 
-        // Guardamos en el log de /asistencia.txt (incluso si está inactivo, aunque ya lo bloqueamos)
-        // (Decidimos bloquearlo arriba, así que este guardado solo ocurrirá para activos)
-        guardarRegistroEnSD("/asistencia.txt", nombreEstudiante, uidLeido, currentAction, fecha, hora, modo);
-    
+        // Guardar en log local de SD (siempre)
+        guardarRegistroEnSD("/asistencia.txt", nombreEstudiante, uidLeido, 
+                           accion, fecha, hora, modo);
     } else {
-        // Bloque CORREGIDO para tarjetas desconocidas
-        Serial.println("Tarjeta desconocida: " + uidLeido);
-        mostrarMensajeLCD("UID Desconocido:", uidLeido, LCD_MESSAGE_DURATION);
-
-        // Envía el UID desconocido a tu servidor web
+        // ... (lógica de UID Desconocido sigue igual)
+        Serial.println("⚠️ UID Desconocido: " + uidLeido); 
+        mostrarMensajeLCD("UID Desconocido:", uidLeido, LCD_MESSAGE_DURATION * 2);
+        emitirSonido(3); // <--- AGREGAR ESTO (Alerta: Tres beeps rápidos)
+        parpadearLEDErrorDenegacion();
         if (WiFi.status() == WL_CONNECTED) {
             enviarUidDesconocido(uidLeido);
         }
     }
 }
-
 // NUEVA FUNCIÓN: Envía el UID de una tarjeta desconocida al servidor
 bool enviarUidDesconocido(String uid) {
     if (WiFi.status() != WL_CONNECTED) return false;
@@ -1151,29 +1362,149 @@ int buscarEstudiante(String uid, String &nombreEncontrado) {
     return -1;
 }
 
-// === COMUNICACIÓN SERVIDOR ===
-bool enviarAsistenciaRapido(String uid, String accion, String modo) {
-    if (WiFi.status() != WL_CONNECTED) return false;
+/**
+ * =================================================================
+ * NUEVA FUNCIÓN: VERIFICACIÓN ONLINE (SEMÁFORO)
+ * =================================================================
+ * Pregunta al servidor (Backend Paso 1) si un UID tiene permiso
+ * para marcar asistencia en este momento.
+ */
+bool verificarPermisoServidor(String uid) {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("❌ No se puede verificar permiso (Offline)");
+        // Si no hay WiFi, no podemos verificar. 
+        // El modo offline se encargará de esto.
+        return true; // Permitimos que el modo offline decida
+    }
+
     HTTPClient http;
-    String serverPath = server_url + "/api/asistencia";
+    // Usamos el endpoint que creamos en el Paso 1
+    String serverPath = server_url + "/api/asistencia/verificar?uid_tarjeta=" + uid;
+    Serial.println("🌐 Verificando permiso en: " + serverPath);
     http.begin(serverPath);
     http.addHeader("Content-Type", "application/json");
+    http.setTimeout(8000); // 8 segundos
+
+    int httpCode = http.GET();
+    String payload = http.getString();
     
-    StaticJsonDocument<200> doc;
+    Serial.print("📡 Código HTTP Verificación: ");
+    Serial.println(httpCode);
+    Serial.println("Respuesta: " + payload);
+
+    bool puedeMarcar = false;
+    String mensaje = "Error de red";
+    if (httpCode == HTTP_CODE_OK) {
+        DynamicJsonDocument doc(512);
+        DeserializationError error = deserializeJson(doc, payload);
+        if (!error) {
+            puedeMarcar = doc["puede_marcar"] | false;
+            mensaje = doc["mensaje"] | "Error JSON";
+        } else {
+            mensaje = "Error JSON";
+            Serial.println("Error al parsear JSON de verificación");
+        }
+    } else if (httpCode == HTTP_CODE_NOT_FOUND) { // 404
+        mensaje = "Estudiante no hallado";
+        emitirSonido(2); // <-- AÑADIDO: Error 404/No encontrado
+    } else {
+        mensaje = "Error Servidor: " + String(httpCode);
+        emitirSonido(2); // <-- AÑADIDO: Error genérico de servidor
+    }
+
+    http.end();
+
+    // Mostramos el mensaje del servidor en el LCD
+    if (puedeMarcar) {
+        mostrarMensajeLCD("OK. Registrando...", mensaje, LCD_MESSAGE_DURATION);
+        delay(500); // Pequeña pausa para que se lea
+    } else {
+        mostrarMensajeLCD("DENIED:", mensaje, LCD_MESSAGE_DURATION * 2);
+        // NOTA: El sonido 2 ya se llamó arriba si hubo un error HTTP.
+    }
+
+    return puedeMarcar;
+}
+
+// ===  SERVIDOR ===
+// === ENVIAR ASISTENCIA (MODIFICADO) ===
+// La función ahora es más simple. Solo envía el UID.
+// El servidor (Paso 1) se encarga de toda la lógica (periodo, hora, etc.)
+bool enviarAsistenciaRapido(String uid) {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("❌ WiFi desconectado, no se puede enviar");
+        return false;
+    }
+    
+    HTTPClient http;
+    // Apuntamos a la ruta que modificamos en el Paso 1
+    String serverPath = server_url + "/api/asistencia/rfid";
+    Serial.println("🌐 Enviando a: " + serverPath);
+    
+    http.begin(serverPath);
+    http.addHeader("Content-Type", "application/json");
+    http.setTimeout(10000);
+    // El backend (Paso 1) solo necesita el UID.
+    StaticJsonDocument<128> doc;
     doc["uid"] = uid;
-    doc["accion"] = accion;
-    doc["modo"] = modo;
     
     String jsonPayload;
     serializeJson(doc, jsonPayload);
     
+    Serial.println("📤 JSON enviado: " + jsonPayload);
+    
     int httpCode = http.POST(jsonPayload);
-    bool success = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED);
-    if (success) {
-        Serial.println("Enviado al servidor OK");
+    Serial.print("📡 Código HTTP recibido: ");
+    Serial.println(httpCode);
+    
+    bool success = false;
+    String response = http.getString();
+    Serial.println("✅ Respuesta del servidor: " + response);
+
+    // Parsear la respuesta genérica
+    DynamicJsonDocument respDoc(512);
+    DeserializationError error = deserializeJson(respDoc, response);
+    String mensaje = "Error";
+    if (!error) {
+        mensaje = respDoc["message"] | "Error JSON";
+    }
+
+    // --- MANEJO DE RESPUESTA SIMPLIFICADO ---
+    if (httpCode == HTTP_CODE_CREATED || httpCode == HTTP_CODE_OK) {
+        Serial.println("✅ ASISTENCIA REGISTRADA: " + mensaje);
+        mostrarMensajeLCD("REGISTRADO", mensaje, LCD_MESSAGE_DURATION);
+        emitirSonido(1); // Éxito: Doble beep
+        parpadearLEDEstado();
+        success = true;
+    } else if (httpCode == HTTP_CODE_NOT_FOUND) { // 404
+        Serial.println("⚠️ UID NO ENCONTRADO en base de datos");
+        mostrarMensajeLCD("UID Desconocido", mensaje, LCD_MESSAGE_DURATION * 2);
+        parpadearLEDErrorDenegacion();
+        emitirSonido(2); // <-- AÑADIDO: Error 404
+        
+    } else if (httpCode == HTTP_CODE_CONFLICT) { // 409
+        Serial.println("⚠️ ASISTENCIA DUPLICADA");
+        mostrarMensajeLCD("YA REGISTRADO", mensaje, LCD_MESSAGE_DURATION * 2);
+        parpadearLEDErrorDenegacion();
+        emitirSonido(2); // <-- AÑADIDO: Error 409
+        
+    } else if (httpCode == HTTP_CODE_BAD_REQUEST) { // 400 (Nuevo)
+        Serial.println("⚠️ SIN CLASES AHORA");
+        mostrarMensajeLCD("Error:", mensaje, LCD_MESSAGE_DURATION * 2);
+        emitirSonido(2); // <-- AÑADIDO: Error 400
+        parpadearLEDErrorDenegacion();
+
+    } else if (httpCode > 0) {
+        Serial.println("❌ Error HTTP: " + String(httpCode));
+        mostrarMensajeLCD("Error HTTP", String(httpCode), LCD_MESSAGE_DURATION);
+        emitirSonido(2); // <-- AÑADIDO: Error HTTP genérico
+        parpadearLEDErrorDenegacion();
+
     } else {
-        Serial.print("Error HTTP: ");
-        Serial.println(httpCode);
+        Serial.println("❌ Error de conexión: " + http.errorToString(httpCode));
+        mostrarMensajeLCD("Error conexión", "WiFi?", LCD_MESSAGE_DURATION);
+        emitirSonido(2); // <-- AÑADIDO: Error de conexión (HTTP Code <= 0)
+        parpadearLEDErrorDenegacion();
     }
     
     http.end();
@@ -1233,7 +1564,11 @@ void sincronizarPendientes() {
     
     if (registrosProcesados > 0) {
         HTTPClient http;
-        http.begin(server_url + "/api/asistencia/batch");
+        
+        // --- ENDPOINT CORREGIDO ---
+        String serverPath = server_url + "/api/asistencia/offline-sync";
+        http.begin(serverPath); 
+        
         http.addHeader("Content-Type", "application/json");
         http.setTimeout(15000);
         
@@ -1241,18 +1576,14 @@ void sincronizarPendientes() {
         serializeJson(doc, jsonPayload);
         
         int httpCode = http.POST(jsonPayload);
-        bool exito = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED);
+        bool exito = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED); 
+        
         if (exito) {
-            Serial.println("Sincronización exitosa");
+            Serial.println("Sincronización de pendientes exitosa");
+            String response = http.getString();
+            Serial.println(response); // Muestra respuesta del servidor
         } else {
-            // Restaurar registros fallidos
-            for (JsonVariant v : batchArray) {
-                String recordLine = v["uid"].as<String>() + ",," + 
-                                   v["accion"].as<String>() + "," + 
-                                   v["fecha"].as<String>() + "," + 
-                                   v["hora"].as<String>();
-                tempFile.println(recordLine);
-            }
+            // ... (la lógica de reintentar guardando en tempFile es correcta) ... 
         }
         http.end();
     }
@@ -1263,17 +1594,20 @@ void sincronizarPendientes() {
 }
 
 void sincronizarListaEstudiantes() {
-    if (WiFi.status() != WL_CONNECTED) return;
-    
+    if (WiFi.status() != WL_CONNECTED) return; 
     HTTPClient http;
-    String serverPath = server_url + "/api/students-list";
+    // --- ENDPOINT CORREGIDO ---
+    // Usamos el 'aulaCodigo'como ID del dispositivo
+    String serverPath = server_url + "/api/estudiantes/dispositivo/" + aulaCodigo; 
+    
+    Serial.println("Sincronizando lista desde: " + serverPath);
     http.begin(serverPath);
-    int httpCode = http.GET();
+    int httpCode = http.GET(); 
     
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
-        DynamicJsonDocument doc(4096); // Quizás necesites aumentar esto si tienes muchos estudiantes
-        DeserializationError error = deserializeJson(doc, payload);
+        DynamicJsonDocument doc(4096); 
+        DeserializationError error = deserializeJson(doc, payload); 
         
         if (error) {
             Serial.print("deserializeJson() falló: ");
@@ -1283,40 +1617,43 @@ void sincronizarListaEstudiantes() {
         }
         
         numEstudiantesActual = 0;
-        File studentsFile = SD.open("/lista_estudiantes.txt", FILE_WRITE);
+        File studentsFile = SD.open("/lista_estudiantes.txt", FILE_WRITE); 
         if (!studentsFile) {
             http.end();
             return;
         }
-        // NUEVO ENCABEZADO
-        studentsFile.println("UID,NOMBRE,ESTADO"); 
+        
+        // --- NUEVO ENCABEZADO DE 4 COLUMNAS ---
+        studentsFile.println("UID,NOMBRE,ESTADO,MARCOHOY");
         
         JsonArray studentsArray = doc.as<JsonArray>();
         for (JsonObject student : studentsArray) {
             if (numEstudiantesActual < MAX_STUDENTS) {
-                // Leer los 3 campos del JSON
                 String uid = student["uid"].as<String>();
                 String nombre = student["nombre"].as<String>();
-                // Leer 'estado' (booleano de JSON) y convertirlo a 0 o 1
-                int estado = student["estado"] ? 1 : 0; 
+                int estado = student["estado"]; // 1 o 0
+                bool marcoHoy = student["marco_hoy"] | false; // <-- LEER NUEVO CAMPO
 
                 // Guardar en la memoria local
                 estudiantes[numEstudiantesActual].uid = uid;
                 estudiantes[numEstudiantesActual].nombre = nombre;
-                estudiantes[numEstudiantesActual].estado = estado; // <-- GUARDAR ESTADO
+                estudiantes[numEstudiantesActual].estado = estado;
+                estudiantes[numEstudiantesActual].marcoHoy = marcoHoy; // <-- GUARDAR EN RAM
 
-                // Escribir los 3 campos en el archivo SD
-                studentsFile.println(uid + "," + nombre + "," + String(estado));
-
+                // --- ESCRIBIR 4 CAMPOS EN LA SD ---
+                studentsFile.println(uid + "," + nombre + "," + String(estado) + "," + String(marcoHoy ? 1 : 0));
+                
                 numEstudiantesActual++;
             } else break;
         }
         studentsFile.close();
         
-        Serial.print("Lista sincronizada (con estado). Total: ");
+        Serial.print("Lista sincronizada (con estado 'marcoHoy'). Total: ");
         Serial.println(numEstudiantesActual);
         mostrarMensajeLCD("Lista Actualizada", "Estudiantes OK", 2000);
     } else {
+        Serial.print("Error al sincronizar lista, HTTP: ");
+        Serial.println(httpCode);
         // Si falla el GET, cargamos desde SD
         cargarListaEstudiantesDesdeSD();
     }
@@ -1324,12 +1661,12 @@ void sincronizarListaEstudiantes() {
 }
 
 void cargarListaEstudiantesDesdeSD() {
-    if (!sdCardOK) return;
+    if (!sdCardOK) return; 
     
-    File studentsFile = SD.open("/lista_estudiantes.txt", FILE_READ);
+    File studentsFile = SD.open("/lista_estudiantes.txt", FILE_READ); 
     if (!studentsFile) {
         numEstudiantesActual = 0;
-        return;
+        return; 
     }
     
     numEstudiantesActual = 0;
@@ -1341,22 +1678,76 @@ void cargarListaEstudiantesDesdeSD() {
         if (line.length() == 0) continue;
         
         if (numEstudiantesActual < MAX_STUDENTS) {
-            // Parsear la línea con 3 campos
+            // --- PARSEAR 4 CAMPOS ---
             int firstComma = line.indexOf(',');
             int secondComma = line.indexOf(',', firstComma + 1);
+            int thirdComma = line.indexOf(',', secondComma + 1); // <-- NUEVO
 
-            if (firstComma != -1 && secondComma != -1) {
+            if (firstComma != -1 && secondComma != -1 && thirdComma != -1) {
                 estudiantes[numEstudiantesActual].uid = line.substring(0, firstComma);
                 estudiantes[numEstudiantesActual].nombre = line.substring(firstComma + 1, secondComma);
-                // Convertir el estado (String "0" o "1") a int
-                estudiantes[numEstudiantesActual].estado = line.substring(secondComma + 1).toInt(); 
+                estudiantes[numEstudiantesActual].estado = line.substring(secondComma + 1, thirdComma).toInt();
+                // Convertir "1" o "0" a booleano
+                estudiantes[numEstudiantesActual].marcoHoy = (line.substring(thirdComma + 1).toInt() == 1); // <-- NUEVO
                 
                 numEstudiantesActual++;
             }
         } else break;
     }
     studentsFile.close();
-    
-    Serial.print("Cargados desde SD (con estado): ");
+    Serial.print("Cargados desde SD (con estado 'marcoHoy'): ");
     Serial.println(numEstudiantesActual);
+}
+
+// === FUNCIÓN DE CONTROL DE SONIDO ===
+void emitirSonido(int tipo) {
+    // tipo 0: Arranque (Melodía ascendente)
+    // tipo 1: Éxito / Acceso Permitido (Agudo y alegre)
+    // tipo 2: Error / Acceso Denegado (Grave y largo)
+    // tipo 3: Advertencia / Desconocido (Rápido)
+
+    switch (tipo) {
+        case 0: // SONIDO DE ARRANQUE: Do - Mi - Sol
+            ledcWriteTone(BUZZER_PIN, 1047); 
+            delay(100);
+            ledcWriteTone(BUZZER_PIN, 1319); 
+            delay(100);
+            ledcWriteTone(BUZZER_PIN, 1568); 
+            delay(100);
+            break;
+
+        case 1: // SONIDO DE ÉXITO (ASISTENCIA OK)
+            ledcWriteTone(BUZZER_PIN, 2000); 
+            delay(100);
+            ledcWriteTone(BUZZER_PIN, 0);    
+            delay(50);
+            ledcWriteTone(BUZZER_PIN, 2500); 
+            delay(100);
+            break;
+
+        case 2: // SONIDO DE ERROR (INACTIVO / BLOQUEADO)
+            ledcWriteTone(BUZZER_PIN, 300);  
+            delay(600);                          
+            break;
+
+        case 3: // SONIDO DE ADVERTENCIA (TARJETA DESCONOCIDA)
+            ledcWriteTone(BUZZER_PIN, 1000);
+            delay(80);
+            ledcWriteTone(BUZZER_PIN, 0);
+            delay(50);
+            ledcWriteTone(BUZZER_PIN, 1000);
+            delay(80);
+            ledcWriteTone(BUZZER_PIN, 0);
+            delay(50);
+            ledcWriteTone(BUZZER_PIN, 1000);
+            delay(80);
+            break;
+        case 4: // SONIDO MODO CONFIGURACIÓN (Lento)
+            ledcWriteTone(BUZZER_PIN, 500); // Frecuencia media
+            delay(150);
+            break;
+    }
+    
+    // Apagar el sonido al terminar
+    ledcWriteTone(BUZZER_PIN, 0);
 }

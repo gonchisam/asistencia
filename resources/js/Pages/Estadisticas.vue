@@ -9,7 +9,7 @@ ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale,
 const props = defineProps({
     asistenciaMensual: Array,
     horasPico: Array,
-    asistenciaPorCarrera: Array,
+    asistenciaPorCarrera: Array, // <--- Este prop ahora será usado para barras agrupadas
     estudiantesEnRiesgo: Array,
 });
 
@@ -18,7 +18,7 @@ const chartOptions = {
     maintainAspectRatio: false,
 };
 
-// Datos para el gráfico de Asistencia Mensual (Líneas)
+// Datos para el gráfico de Asistencia Mensual (Líneas) - SIN CAMBIOS
 const asistenciaMensualData = computed(() => {
     return {
         labels: props.asistenciaMensual.map(item => item.mes),
@@ -30,7 +30,7 @@ const asistenciaMensualData = computed(() => {
     };
 });
 
-// Datos para el gráfico de Horas Pico (Barras)
+// Datos para el gráfico de Horas Pico (Barras) - SIN CAMBIOS
 const horasPicoData = computed(() => {
     return {
         labels: props.horasPico.map(item => `${item.hora}:00`),
@@ -42,18 +42,53 @@ const horasPicoData = computed(() => {
     };
 });
 
-// Datos para el gráfico de Asistencia por Carrera (Circular)
+// ----- INICIO DE LA MODIFICACIÓN -----
+// Datos para el gráfico de Asistencia por Carrera (Barras Agrupadas)
 const asistenciaPorCarreraData = computed(() => {
-    const backgroundColors = ['#48bb78', '#667eea', '#9f7aea', '#ed8936', '#ecc94b', '#f687b3'];
+    const rawData = props.asistenciaPorCarrera; // Viene del backend
+    
+    // 1. Definir los años (grupos) y sus colores/etiquetas
+    // Asumimos que los valores en la BD son 'PRIMERO', 'SEGUNDO', 'TERCERO'
+    const añosDefinidos = ['PRIMERO', 'SEGUNDO', 'TERCERO']; 
+    
+    const añoConfig = {
+        'PRIMERO': { label: 'Primer Año', color: '#4299e1' }, // Azul
+        'SEGUNDO': { label: 'Segundo Año', color: '#48bb78' }, // Verde
+        'TERCERO': { label: 'Tercer Año', color: '#f6ad55' }, // Naranja
+    };
+
+    // 2. Obtener las carreras únicas (labels del eje X)
+    // Usamos Set para valores únicos y luego ordenamos
+    const carreras = [...new Set(rawData.map(item => item.carrera))].sort();
+
+    // 3. Crear los datasets (uno por cada año definido)
+    const datasets = añosDefinidos.map(año => {
+        
+        // 4. Para cada año, buscar el valor correspondiente a cada carrera
+        const data = carreras.map(carrera => {
+            const item = rawData.find(d => d.carrera === carrera && d.año === año);
+            
+            // 5. ----- CAMBIO AQUÍ -----
+            // Usar 'porcentaje' en lugar de 'total_asistencias'
+            // Redondeamos a 1 decimal para que se vea limpio
+            return item ? parseFloat(item.porcentaje.toFixed(1)) : 0;
+            // ----- FIN DEL CAMBIO -----
+        });
+
+        return {
+            label: añoConfig[año].label,
+            backgroundColor: añoConfig[año].color,
+            data: data
+        };
+    });
+
     return {
-        labels: props.asistenciaPorCarrera.map(item => item.carrera),
-        datasets: [{
-            label: 'Asistencias por Carrera',
-            backgroundColor: props.asistenciaPorCarrera.map((_, index) => backgroundColors[index % backgroundColors.length]),
-            data: props.asistenciaPorCarrera.map(item => item.total),
-        }]
+        labels: carreras,
+        datasets: datasets
     };
 });
+// ----- FIN DE LA MODIFICACIÓN -----
+
 </script>
 
 <template>
@@ -76,13 +111,14 @@ const asistenciaPorCarreraData = computed(() => {
                     <Bar :data="horasPicoData" :options="chartOptions" />
                 </div>
             </div>
+            
             <div>
-                <h3 class="text-xl font-semibold mb-4">Asistencia por Carrera</h3>
+                <h3 class="text-xl font-semibold mb-4">Asistencia por Carrera y Año</h3>
                 <div class="h-80">
-                    <Pie :data="asistenciaPorCarreraData" :options="chartOptions" />
+                    <Bar :data="asistenciaPorCarreraData" :options="chartOptions" />
                 </div>
             </div>
-        </div>
+            </div>
 
         <hr class="my-8" />
 
